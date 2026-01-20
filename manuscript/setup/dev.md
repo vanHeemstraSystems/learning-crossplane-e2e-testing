@@ -16,7 +16,7 @@ This guide will help you set up an Azure Kubernetes Service (AKS) cluster with C
 ```bash
 # Clone the repository
 git clone https://github.com/vanHeemstraSystems/learning-crossplane-e2e-testing.git
-cd cncf-demo
+cd learning-crossplane-e2e-testing
 
 # Make the setup script executable
 chmod +x setup/crossplane-e2e-setup.sh
