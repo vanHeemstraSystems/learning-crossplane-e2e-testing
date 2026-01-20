@@ -1,1 +1,16 @@
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+commands:
 
+- script: |
+  #!/bin/bash
+  
+  # Verify XR is deleted
+  
+  if kubectl get xstorageaccount test-storage-e2e-001 2>/dev/null; then
+  echo “ERROR: XR still exists”
+  exit 1
+  fi
+  
+  echo “SUCCESS: XR has been deleted”
+  exit 0
