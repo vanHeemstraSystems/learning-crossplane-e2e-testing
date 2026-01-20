@@ -1,1 +1,936 @@
+# AKS Setup for Crossplane V2 with End-to-End Testing
 
+This guide will help you set up an Azure Kubernetes Service (AKS) cluster with Crossplane v2, Flux for GitOps, and end-to-end testing capabilities.
+
+## Prerequisites
+
+- Azure CLI installed and authenticated
+- kubectl installed
+- Helm 3 installed
+- Git installed
+- jq installed (for JSON parsing)
+- GitHub account and personal access token
+
+## Quick Start
+
+```bash
+# Clone the repository
+git clone https://github.com/vanHeemstraSystems/cncf-demo.git
+cd cncf-demo
+
+# Make the setup script executable
+chmod +x setup/crossplane-e2e-setup.sh
+
+# Run the automated setup
+./setup/crossplane-e2e-setup.sh
+```
+
+Or follow the manual steps below for more control.
+
+## Manual Setup Steps
+
+### 1. Set Environment Variables
+
+```bash
+# Azure Configuration
+export RESOURCE_GROUP="crossplane-e2e-rg"
+export LOCATION="westeurope"
+export CLUSTER_NAME="crossplane-e2e-aks"
+export NODE_COUNT=3
+export NODE_SIZE="Standard_D2s_v3"
+
+# Crossplane Configuration
+export CROSSPLANE_NAMESPACE="crossplane-system"
+export CROSSPLANE_VERSION="1.15.0"  # Latest stable v1.x (v2.0 coming soon)
+
+# Testing Configuration
+export TEST_RESOURCE_GROUP="crossplane-e2e-test-rg"
+export TEST_TAG="purpose=e2e-testing"
+```
+
+### 2. Create Azure Resources
+
+```bash
+# Login to Azure
+az login
+
+# Set your subscription (if you have multiple)
+az account set --subscription "YOUR_SUBSCRIPTION_NAME_OR_ID"
+
+# Verify current subscription
+az account show
+
+# Create resource group
+az group create \
+  --name $RESOURCE_GROUP \
+  --location $LOCATION \
+  --tags environment=development managedBy=crossplane
+
+# Create AKS cluster with managed identity
+az aks create \
+  --resource-group $RESOURCE_GROUP \
+  --name $CLUSTER_NAME \
+  --node-count $NODE_COUNT \
+  --node-vm-size $NODE_SIZE \
+  --enable-managed-identity \
+  --network-plugin azure \
+  --network-policy azure \
+  --generate-ssh-keys \
+  --tags environment=development purpose=crossplane-testing
+
+# This will take 5-10 minutes...
+```
+
+### 3. Configure kubectl
+
+```bash
+# Get AKS credentials
+az aks get-credentials \
+  --resource-group $RESOURCE_GROUP \
+  --name $CLUSTER_NAME \
+  --overwrite-existing
+
+# Verify connection
+kubectl cluster-info
+kubectl get nodes
+```
+
+### 4. Install Crossplane
+
+```bash
+# Add Crossplane Helm repository
+helm repo add crossplane-stable https://charts.crossplane.io/stable
+helm repo update
+
+# Install Crossplane
+helm install crossplane \
+  --namespace $CROSSPLANE_NAMESPACE \
+  --create-namespace \
+  crossplane-stable/crossplane \
+  --version $CROSSPLANE_VERSION \
+  --wait
+
+# Verify Crossplane installation
+kubectl get pods -n $CROSSPLANE_NAMESPACE
+
+# Expected output:
+# NAME                                      READY   STATUS    RESTARTS   AGE
+# crossplane-xxx                            1/1     Running   0          1m
+# crossplane-rbac-manager-xxx               1/1     Running   0          1m
+```
+
+### 5. Install Crossplane CLI
+
+```bash
+# Download and install Crossplane CLI
+curl -sL "https://raw.githubusercontent.com/crossplane/crossplane/master/install.sh" | sh
+
+# Move to system path
+sudo mv crossplane /usr/local/bin/
+
+# Verify installation
+crossplane --version
+```
+
+### 6. Create Azure Service Principal for Crossplane
+
+```bash
+# Get your subscription ID
+export SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+
+# Create service principal with Contributor role
+SP_OUTPUT=$(az ad sp create-for-rbac \
+  --name "crossplane-e2e-${CLUSTER_NAME}" \
+  --role Contributor \
+  --scopes /subscriptions/$SUBSCRIPTION_ID \
+  --output json)
+
+# Extract credentials
+export AZURE_CLIENT_ID=$(echo $SP_OUTPUT | jq -r '.appId')
+export AZURE_CLIENT_SECRET=$(echo $SP_OUTPUT | jq -r '.password')
+export AZURE_TENANT_ID=$(echo $SP_OUTPUT | jq -r '.tenant')
+
+# IMPORTANT: Save these credentials securely!
+echo "Azure Service Principal Credentials:"
+echo "Client ID: $AZURE_CLIENT_ID"
+echo "Client Secret: $AZURE_CLIENT_SECRET"
+echo "Tenant ID: $AZURE_TENANT_ID"
+echo "Subscription ID: $SUBSCRIPTION_ID"
+
+# Save to file (gitignored)
+cat > .azure-credentials <<EOF
+AZURE_CLIENT_ID=$AZURE_CLIENT_ID
+AZURE_CLIENT_SECRET=$AZURE_CLIENT_SECRET
+AZURE_TENANT_ID=$AZURE_TENANT_ID
+SUBSCRIPTION_ID=$SUBSCRIPTION_ID
+EOF
+
+chmod 600 .azure-credentials
+```
+
+### 7. Create Kubernetes Secret for Azure Credentials
+
+```bash
+# Create secret in Crossplane namespace
+kubectl create secret generic azure-secret \
+  --namespace $CROSSPLANE_NAMESPACE \
+  --from-literal=creds="[default]
+client_id = $AZURE_CLIENT_ID
+client_secret = $AZURE_CLIENT_SECRET
+tenant_id = $AZURE_TENANT_ID
+subscription_id = $SUBSCRIPTION_ID"
+
+# Verify secret creation
+kubectl get secret azure-secret -n $CROSSPLANE_NAMESPACE
+```
+
+### 8. Install Azure Providers
+
+Crossplane v2 uses modular providers. Install the ones you need:
+
+```bash
+# Create provider installation manifest
+cat <<EOF | kubectl apply -f -
+---
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-azure-storage
+spec:
+  package: xpkg.upbound.io/upbound/provider-azure-storage:v1.3.0
+  packagePullPolicy: IfNotPresent
+---
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-azure-network
+spec:
+  package: xpkg.upbound.io/upbound/provider-azure-network:v1.3.0
+  packagePullPolicy: IfNotPresent
+---
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-azure-postgresql
+spec:
+  package: xpkg.upbound.io/upbound/provider-azure-postgresql:v1.3.0
+  packagePullPolicy: IfNotPresent
+---
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-azure-compute
+spec:
+  package: xpkg.upbound.io/upbound/provider-azure-compute:v1.3.0
+  packagePullPolicy: IfNotPresent
+EOF
+
+# Wait for providers to install (this may take 2-3 minutes)
+echo "Waiting for providers to install..."
+sleep 60
+
+# Check provider status
+kubectl get providers
+
+# Wait for all providers to be healthy
+kubectl wait provider --all \
+  --for=condition=Healthy \
+  --timeout=600s
+
+# Verify provider pods are running
+kubectl get pods -n $CROSSPLANE_NAMESPACE
+```
+
+### 9. Create ProviderConfig
+
+```bash
+# Create default ProviderConfig for Azure
+cat <<EOF | kubectl apply -f -
+apiVersion: azure.upbound.io/v1beta1
+kind: ProviderConfig
+metadata:
+  name: default
+spec:
+  credentials:
+    source: Secret
+    secretRef:
+      namespace: $CROSSPLANE_NAMESPACE
+      name: azure-secret
+      key: creds
+EOF
+
+# Verify ProviderConfig
+kubectl get providerconfig
+```
+
+### 10. Install Flux for GitOps
+
+```bash
+# Install Flux CLI
+curl -s https://fluxcd.io/install.sh | sudo bash
+
+# Verify Flux prerequisites
+flux check --pre
+
+# Set your GitHub details
+export GITHUB_USER="vanHeemstraSystems"
+export GITHUB_REPO="crossplane-e2e-fleet"
+export GITHUB_TOKEN="your-github-token"  # Create at https://github.com/settings/tokens
+
+# Bootstrap Flux (this creates the repo if it doesn't exist)
+flux bootstrap github \
+  --owner=$GITHUB_USER \
+  --repository=$GITHUB_REPO \
+  --branch=main \
+  --path=./clusters/dev \
+  --personal \
+  --token-auth
+
+# Verify Flux installation
+flux check
+
+# View Flux components
+kubectl get pods -n flux-system
+```
+
+### 11. Install E2E Testing Tools
+
+```bash
+# Install kuttl (Kubernetes Test Tool)
+KUTTL_VERSION=0.15.0
+wget -q https://github.com/kudobuilder/kuttl/releases/download/v${KUTTL_VERSION}/kubectl-kuttl_${KUTTL_VERSION}_linux_x86_64
+chmod +x kubectl-kuttl_${KUTTL_VERSION}_linux_x86_64
+sudo mv kubectl-kuttl_${KUTTL_VERSION}_linux_x86_64 /usr/local/bin/kubectl-kuttl
+
+# Verify kuttl installation
+kubectl kuttl version
+
+# Install Azure CLI (if not already installed)
+curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+```
+
+### 12. Create Test Directory Structure
+
+```bash
+# Create E2E test directory structure
+mkdir -p tests/e2e/{01-storage-account,02-virtual-network,03-postgresql-database,04-integration}
+
+# Create each test subdirectories
+for dir in tests/e2e/*/; do
+  mkdir -p "$dir"/{00-setup,01-verify,02-cleanup}
+done
+
+# Create test resource group for E2E tests
+az group create \
+  --name $TEST_RESOURCE_GROUP \
+  --location $LOCATION \
+  --tags environment=test purpose=e2e-testing auto-cleanup=true
+
+echo "Test directory structure created!"
+tree tests/e2e/
+```
+
+### 13. Create Example XRD and Composition
+
+Let’s create a simple storage account example:
+
+```bash
+# Create XRD directory
+mkdir -p config/xrds
+
+# Create Storage Account XRD
+cat <<'EOF' > config/xrds/xstorage-account.yaml
+apiVersion: apiextensions.crossplane.io/v1
+kind: CompositeResourceDefinition
+metadata:
+  name: xstorageaccounts.storage.example.io
+spec:
+  group: storage.example.io
+  names:
+    kind: XStorageAccount
+    plural: xstorageaccounts
+  claimNames:
+    kind: StorageAccount
+    plural: storageaccounts
+  versions:
+  - name: v1alpha1
+    served: true
+    referenceable: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              parameters:
+                type: object
+                properties:
+                  location:
+                    type: string
+                    description: Azure region for the storage account
+                    default: westeurope
+                  accountTier:
+                    type: string
+                    description: Storage account tier
+                    enum: [Standard, Premium]
+                    default: Standard
+                  replicationType:
+                    type: string
+                    description: Replication type
+                    enum: [LRS, GRS, RAGRS, ZRS]
+                    default: LRS
+                  resourceGroupName:
+                    type: string
+                    description: Azure resource group name
+                required:
+                - resourceGroupName
+            required:
+            - parameters
+          status:
+            type: object
+            properties:
+              storageAccountName:
+                type: string
+              primaryEndpoint:
+                type: string
+EOF
+
+# Create Compositions directory
+mkdir -p config/compositions
+
+# Create Storage Account Composition
+cat <<'EOF' > config/compositions/storage-account.yaml
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: xstorageaccounts.storage.example.io
+  labels:
+    provider: azure
+    type: standard
+spec:
+  compositeTypeRef:
+    apiVersion: storage.example.io/v1alpha1
+    kind: XStorageAccount
+  
+  mode: Pipeline
+  pipeline:
+  - step: patch-and-transform
+    functionRef:
+      name: function-patch-and-transform
+    input:
+      apiVersion: pt.fn.crossplane.io/v1beta1
+      kind: Resources
+      resources:
+      - name: storageaccount
+        base:
+          apiVersion: storage.azure.upbound.io/v1beta2
+          kind: Account
+          spec:
+            forProvider:
+              accountReplicationType: LRS
+              accountTier: Standard
+              resourceGroupNameSelector:
+                matchControllerRef: true
+              tags:
+                managedBy: crossplane
+                environment: test
+        patches:
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.parameters.location
+          toFieldPath: spec.forProvider.location
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.parameters.accountTier
+          toFieldPath: spec.forProvider.accountTier
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.parameters.replicationType
+          toFieldPath: spec.forProvider.accountReplicationType
+        - type: ToCompositeFieldPath
+          fromFieldPath: metadata.name
+          toFieldPath: status.storageAccountName
+        - type: ToCompositeFieldPath
+          fromFieldPath: status.atProvider.primaryBlobEndpoint
+          toFieldPath: status.primaryEndpoint
+      
+      - name: resourcegroup
+        base:
+          apiVersion: azure.upbound.io/v1beta1
+          kind: ResourceGroup
+          spec:
+            forProvider:
+              location: westeurope
+              tags:
+                managedBy: crossplane
+                environment: test
+        patches:
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.parameters.location
+          toFieldPath: spec.forProvider.location
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.parameters.resourceGroupName
+          toFieldPath: metadata.name
+  
+  - step: auto-ready
+    functionRef:
+      name: function-auto-ready
+EOF
+
+# Install required Composition Functions
+cat <<EOF | kubectl apply -f -
+---
+apiVersion: pkg.crossplane.io/v1beta1
+kind: Function
+metadata:
+  name: function-patch-and-transform
+spec:
+  package: xpkg.upbound.io/crossplane-contrib/function-patch-and-transform:v0.2.1
+---
+apiVersion: pkg.crossplane.io/v1beta1
+kind: Function
+metadata:
+  name: function-auto-ready
+spec:
+  package: xpkg.upbound.io/crossplane-contrib/function-auto-ready:v0.2.1
+EOF
+
+# Wait for functions to be ready
+sleep 30
+kubectl wait function --all --for=condition=Healthy --timeout=300s
+
+# Apply XRD and Composition
+kubectl apply -f config/xrds/xstorage-account.yaml
+kubectl apply -f config/compositions/storage-account.yaml
+
+# Verify
+kubectl get xrd
+kubectl get composition
+```
+
+### 14. Create Example E2E Test
+
+```bash
+# Create test configuration
+cat <<'EOF' > tests/e2e/01-storage-account/kuttl-test.yaml
+apiVersion: kuttl.dev/v1beta1
+kind: TestSuite
+metadata:
+  name: storage-account-e2e
+timeout: 600
+parallel: 1
+testDirs:
+- .
+EOF
+
+# Create test case - Setup
+cat <<'EOF' > tests/e2e/01-storage-account/00-setup/00-xr-storage.yaml
+apiVersion: storage.example.io/v1alpha1
+kind: XStorageAccount
+metadata:
+  name: test-storage-e2e-001
+spec:
+  parameters:
+    location: westeurope
+    accountTier: Standard
+    replicationType: LRS
+    resourceGroupName: crossplane-e2e-test-rg
+  compositionSelector:
+    matchLabels:
+      provider: azure
+      type: standard
+EOF
+
+# Create test case - Assert XR is created
+cat <<'EOF' > tests/e2e/01-storage-account/00-setup/00-assert.yaml
+apiVersion: storage.example.io/v1alpha1
+kind: XStorageAccount
+metadata:
+  name: test-storage-e2e-001
+status:
+  conditions:
+  - type: Ready
+    status: "True"
+  - type: Synced
+    status: "True"
+EOF
+
+# Create test case - Verify Managed Resources
+cat <<'EOF' > tests/e2e/01-storage-account/01-verify/00-assert-storage.yaml
+apiVersion: storage.azure.upbound.io/v1beta2
+kind: Account
+metadata:
+  ownerReferences:
+  - apiVersion: storage.example.io/v1alpha1
+    kind: XStorageAccount
+    name: test-storage-e2e-001
+status:
+  conditions:
+  - type: Ready
+    status: "True"
+EOF
+
+# Create test case - Verify with Azure CLI
+cat <<'EOF' > tests/e2e/01-storage-account/01-verify/01-verify-azure.yaml
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+commands:
+- script: |
+    # Get the storage account name from the XR
+    STORAGE_NAME=$(kubectl get xstorageaccount test-storage-e2e-001 \
+      -o jsonpath='{.status.storageAccountName}')
+    
+    # Verify the storage account exists in Azure
+    az storage account show \
+      --name $STORAGE_NAME \
+      --resource-group crossplane-e2e-test-rg \
+      --query "provisioningState" \
+      --output tsv | grep -q "Succeeded"
+    
+    exit $?
+EOF
+
+# Create test case - Cleanup
+cat <<'EOF' > tests/e2e/01-storage-account/02-cleanup/00-delete.yaml
+apiVersion: storage.example.io/v1alpha1
+kind: XStorageAccount
+metadata:
+  name: test-storage-e2e-001
+$patch: delete
+EOF
+
+# Create test case - Assert cleanup completed
+cat <<'EOF' > tests/e2e/01-storage-account/02-cleanup/00-assert.yaml
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+commands:
+- script: |
+    # Verify XR is deleted
+    ! kubectl get xstorageaccount test-storage-e2e-001 2>/dev/null
+    exit $?
+EOF
+```
+
+### 15. Create Helper Scripts
+
+```bash
+# Create scripts directory
+mkdir -p scripts
+
+# Create test runner script
+cat <<'EOF' > scripts/run-e2e-tests.sh
+#!/bin/bash
+set -e
+
+echo "=== Running Crossplane E2E Tests ==="
+
+# Ensure we're in the right context
+kubectl config current-context
+
+# Run kuttl tests
+kubectl kuttl test \
+  --config tests/e2e/kuttl-test.yaml \
+  --timeout 900 \
+  --start-kind=false
+
+echo "=== E2E Tests Complete ==="
+EOF
+
+# Create cleanup script
+cat <<'EOF' > scripts/cleanup-test-resources.sh
+#!/bin/bash
+set -e
+
+echo "=== Cleaning up E2E test resources ==="
+
+# Delete all test XRs
+echo "Deleting test XRs..."
+kubectl delete xstorageaccount -l test=e2e --ignore-not-found=true
+
+# Wait for Crossplane to clean up managed resources
+echo "Waiting for managed resources to be deleted..."
+sleep 30
+
+# Clean up any orphaned Azure resources
+echo "Checking for orphaned Azure resources..."
+ORPHANED=$(az resource list \
+  --tag purpose=e2e-testing \
+  --query "[].id" -o tsv)
+
+if [ -n "$ORPHANED" ]; then
+  echo "Found orphaned resources, deleting..."
+  echo "$ORPHANED" | xargs -I {} az resource delete --ids {} --verbose
+else
+  echo "No orphaned resources found"
+fi
+
+echo "=== Cleanup complete ==="
+EOF
+
+# Make scripts executable
+chmod +x scripts/*.sh
+```
+
+### 16. Create Flux GitOps Structure
+
+```bash
+# Create Flux directory structure
+mkdir -p flux/clusters/dev/{crossplane,compositions,xrs}
+
+# Create Flux Kustomization for Crossplane configs
+cat <<EOF > flux/clusters/dev/crossplane/kustomization.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../../../config/xrds
+EOF
+
+# Create Flux Kustomization for Compositions
+cat <<EOF > flux/clusters/dev/compositions/kustomization.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../../../config/compositions
+EOF
+
+# Create Flux GitRepository
+cat <<EOF > flux/clusters/dev/crossplane-repo.yaml
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: crossplane-configs
+  namespace: flux-system
+spec:
+  interval: 1m
+  url: https://github.com/$GITHUB_USER/$GITHUB_REPO
+  ref:
+    branch: main
+EOF
+
+# Create Flux Kustomizations
+cat <<EOF > flux/clusters/dev/crossplane-kustomizations.yaml
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: crossplane-xrds
+  namespace: flux-system
+spec:
+  interval: 5m
+  path: ./config/xrds
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: crossplane-configs
+  healthChecks:
+  - apiVersion: apiextensions.crossplane.io/v1
+    kind: CompositeResourceDefinition
+    name: xstorageaccounts.storage.example.io
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: crossplane-compositions
+  namespace: flux-system
+spec:
+  interval: 5m
+  path: ./config/compositions
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: crossplane-configs
+  dependsOn:
+  - name: crossplane-xrds
+EOF
+```
+
+## Verification Steps
+
+### 1. Verify Complete Installation
+
+```bash
+# Run complete verification
+cat <<'EOF' > scripts/verify-setup.sh
+#!/bin/bash
+
+echo "=== Crossplane E2E Setup Verification ==="
+
+# Check AKS
+echo "Checking AKS cluster..."
+kubectl cluster-info
+kubectl get nodes
+
+# Check Crossplane
+echo "Checking Crossplane..."
+kubectl get pods -n crossplane-system
+kubectl get providers
+kubectl get functions
+
+# Check ProviderConfig
+echo "Checking ProviderConfig..."
+kubectl get providerconfig
+
+# Check XRDs and Compositions
+echo "Checking XRDs..."
+kubectl get xrd
+
+echo "Checking Compositions..."
+kubectl get composition
+
+# Check Flux
+echo "Checking Flux..."
+flux check
+kubectl get gitrepository -n flux-system
+kubectl get kustomization -n flux-system
+
+# Check E2E test structure
+echo "Checking test structure..."
+ls -la tests/e2e/
+
+echo "=== Verification Complete ==="
+EOF
+
+chmod +x scripts/verify-setup.sh
+./scripts/verify-setup.sh
+```
+
+### 2. Run Your First E2E Test
+
+```bash
+# Run the storage account test
+kubectl kuttl test tests/e2e/01-storage-account/
+
+# Watch the test progress in another terminal
+watch kubectl get xstorageaccount,account,resourcegroup
+```
+
+### 3. Monitor with Azure CLI
+
+```bash
+# Watch Azure resources being created
+watch az resource list \
+  --resource-group crossplane-e2e-test-rg \
+  --output table
+```
+
+## Troubleshooting
+
+### Common Issues
+
+**1. Provider not becoming healthy**
+
+```bash
+# Check provider logs
+kubectl logs -n crossplane-system -l pkg.crossplane.io/provider=provider-azure-storage
+
+# Check provider config
+kubectl describe providerconfig default
+```
+
+**2. XR not becoming ready**
+
+```bash
+# Check XR events
+kubectl describe xstorageaccount test-storage-e2e-001
+
+# Check managed resource status
+kubectl get managed
+
+# Check Crossplane logs
+kubectl logs -n crossplane-system deployment/crossplane -f
+```
+
+**3. Azure authentication issues**
+
+```bash
+# Verify secret exists
+kubectl get secret azure-secret -n crossplane-system
+
+# Test service principal manually
+az login --service-principal \
+  -u $AZURE_CLIENT_ID \
+  -p $AZURE_CLIENT_SECRET \
+  --tenant $AZURE_TENANT_ID
+
+az account show
+```
+
+**4. Flux not syncing**
+
+```bash
+# Check Flux status
+flux get all
+
+# Force reconciliation
+flux reconcile source git crossplane-configs
+flux reconcile kustomization crossplane-xrds
+
+# Check Flux logs
+kubectl logs -n flux-system deployment/source-controller
+```
+
+## Cleanup
+
+### Temporary Cleanup (Keep Cluster)
+
+```bash
+# Run cleanup script
+./scripts/cleanup-test-resources.sh
+
+# Or manual cleanup
+kubectl delete xstorageaccount --all
+kubectl delete composition --all
+kubectl delete xrd --all
+```
+
+### Complete Cleanup (Remove Everything)
+
+```bash
+# Delete test resource group
+az group delete --name $TEST_RESOURCE_GROUP --yes --no-wait
+
+# Delete AKS cluster and main resource group
+az group delete --name $RESOURCE_GROUP --yes --no-wait
+
+# Delete service principal
+SP_ID=$(az ad sp list --display-name "crossplane-e2e-${CLUSTER_NAME}" --query "[0].id" -o tsv)
+az ad sp delete --id $SP_ID
+
+# Remove local kubectl context
+kubectl config delete-context $CLUSTER_NAME
+```
+
+## Next Steps
+
+1. **Create more XRDs and Compositions** for your use cases (databases, networks, etc.)
+1. **Integrate with Backstage** to generate XRs from templates
+1. **Set up CI/CD pipeline** to run E2E tests on every PR
+1. **Create monitoring dashboards** for Crossplane resources
+1. **Implement cost tracking** for test resources
+1. **Document your compositions** for platform users
+
+## Additional Resources
+
+- [Crossplane Documentation](https://docs.crossplane.io/)
+- [Upbound Testing Guide](https://blog.upbound.io/crossplane-testing-deep-dive)
+- [Flux Documentation](https://fluxcd.io/docs/)
+- [Kuttl Documentation](https://kuttl.dev/)
+- [Azure Provider Documentation](https://marketplace.upbound.io/providers/upbound/provider-azure)
+
+## Support
+
+For issues or questions:
+
+- Check the [troubleshooting section](#troubleshooting) above
+- Review Crossplane logs: `kubectl logs -n crossplane-system deployment/crossplane`
+- Check provider logs: `kubectl logs -n crossplane-system -l pkg.crossplane.io/provider`
+- Consult the [Crossplane Slack](https://slack.crossplane.io/)
+
+-----
+
+**Note**: This setup is configured for development and testing. For production deployments, consider:
+
+- Using Azure Key Vault for secrets
+- Implementing network policies
+- Setting up monitoring and alerting
+- Configuring backup and disaster recovery
+- Implementing proper RBAC
+- Using separate subscriptions for different environments
