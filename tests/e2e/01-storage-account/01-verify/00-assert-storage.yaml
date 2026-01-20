@@ -9,4 +9,4 @@ ownerReferences:
   status:
   conditions:
 - type: Ready
-  status: “True”
+  status: "True"
