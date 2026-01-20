@@ -1,1 +1,35 @@
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+commands:
 
+- script: |
+  #!/bin/bash
+  set -e
+  
+  # Get the storage account name from the XR status
+  
+  STORAGE_NAME=$(kubectl get xstorageaccount test-storage-e2e-001   
+  -o jsonpath=’{.status.storageAccountName}’)
+  
+  if [ -z “$STORAGE_NAME” ]; then
+  echo “ERROR: Storage account name not found in XR status”
+  exit 1
+  fi
+  
+  echo “Verifying storage account: $STORAGE_NAME”
+  
+  # Verify the storage account exists in Azure
+  
+  PROVISION_STATE=$(az storage account show   
+  –name “$STORAGE_NAME”   
+  –resource-group crossplane-e2e-test-rg   
+  –query “provisioningState”   
+  –output tsv 2>/dev/null)
+  
+  if [ “$PROVISION_STATE” != “Succeeded” ]; then
+  echo “ERROR: Storage account provisioning state is not ‘Succeeded’, got: $PROVISION_STATE”
+  exit 1
+  fi
+  
+  echo “SUCCESS: Storage account verified in Azure”
+  exit 0
