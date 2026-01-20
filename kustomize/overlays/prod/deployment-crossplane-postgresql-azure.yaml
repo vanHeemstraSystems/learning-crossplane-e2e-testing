@@ -1,0 +1,40 @@
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cncf-demo
+spec:
+  template:
+    spec:
+      containers:
+        - name: main
+          env: 
+          - name: DB_ENDPOINT
+            valueFrom:
+              secretKeyRef:
+                name: cncf-demo-db
+                key: endpoint
+          - name: DB_PORT
+            valueFrom:
+              secretKeyRef:
+                name: cncf-demo-db
+                key: port
+          - name: DB_USER
+            valueFrom:
+              secretKeyRef:
+                name: cncf-demo-db
+                key: username
+          - name: DB_PASS
+            valueFrom:
+              secretKeyRef:
+                name: cncf-demo-db
+                key: password
+          - name: DB_NAME
+            value: cncf-demo-db
+          - name: FGA_API_URL
+            value: ""
+          - name: FGA_STORE_ID
+            value: ""
+          - name: FGA_MODEL_ID
+            value: ""

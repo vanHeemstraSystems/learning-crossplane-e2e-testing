@@ -1,0 +1,35 @@
+name: "cncf-demo"
+image:
+  repository: index.docker.io/vfarcic/cncf-demo
+  tag: latest
+replicas: 1
+ingress:
+  host: cncf-demo-dev.sillydemo.com
+  className: traefik
+tls:
+  enabled: false
+db:
+  id: cncf-demo-db-dev
+  insecure: false
+  enabled:
+    helm: false
+    crossplane:
+      local: false
+      google: false
+      aws: false
+      azure: false
+  size: small
+schemahero:
+  enabled: false
+otel:
+  enabled: false
+  jaegerAddr: "http://jaeger-collector.monitoring:4318"
+logging:
+  enabled: false
+serviceMesh:
+  enabled: false
+  tool: istio
+  gatewayHost: acme.com
+progressiveDelivery:
+  enabled: false
+  tool: argo-rollouts

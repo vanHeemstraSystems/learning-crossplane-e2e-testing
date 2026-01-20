@@ -1,0 +1,38 @@
+---
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: deploymentReplicas
+metadata:
+  name: deploymentproduction
+spec:
+  match:
+    kinds:
+      - apiGroups: ["apps"]
+        kinds: ["Deployment"]
+    namespaces: ["production"]
+  parameters:
+    replicas: 2
+---
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: dbSize
+metadata:
+  name: dbcluster
+spec:
+  match:
+    kinds:
+      - apiGroups: ["devopstoolkitseries.com"]
+        kinds: ["SQLClaim", "SQL"]
+  parameters:
+    size: "small|medium|large"
+---
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: dbSize
+metadata:
+  name: dbproduction
+spec:
+  match:
+    kinds:
+      - apiGroups: ["devopstoolkitseries.com"]
+        kinds: ["SQLClaim", "SQL"]
+    namespaces: ["production"]
+  parameters:
+    size: "medium|large"

@@ -5,9 +5,9 @@ This guide will help you set up an Azure Kubernetes Service (AKS) cluster with C
 ## Prerequisites
 
 - [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli-windows?view=azure-cli-latest&pivots=winget) installed and authenticated
-- kubectl installed
-- Helm 3 installed
-- Git installed
+- [kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl-windows/) installed
+- [Helm 3](https://helm.sh/docs/intro/install/) installed
+- [Git](https://git-scm.com/install/windows) installed
 - [jq](https://bobbyhadz.com/blog/install-and-use-jq-on-windows) installed (for JSON parsing)
 - GitHub account and personal access token
 

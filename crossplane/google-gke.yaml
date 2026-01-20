@@ -1,0 +1,14 @@
+apiVersion: devopstoolkitseries.com/v1alpha1
+kind: ClusterClaim
+metadata:
+  name: production
+spec:
+  id: production
+  compositionSelector:
+    matchLabels:
+      provider: google
+      cluster: gke
+  parameters:
+    nodeSize: medium
+    minNodeCount: 1
+    version: 1.25.4-gke.2100

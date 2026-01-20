@@ -1,0 +1,16 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: silly-demo
+spec:
+  components:
+  - name: silly-demo
+    type: app-backend
+    properties:
+      image: ghcr.io/vfarcic/cncf-demo-app
+      tag: FIXME
+      port: 8080
+      host: silly-demo.35.173.147.54.nip.io
+      ingressClassName: contour
+      db:
+        secret: silly-demo-db

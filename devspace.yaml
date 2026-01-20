@@ -1,0 +1,28 @@
+version: v2beta1
+name: cncf-demo
+pipelines:
+  dev:
+    run: |-
+      create_deployments --all
+      start_dev app
+deployments: {}
+dev:
+  app:
+    labelSelector:
+      app.kubernetes.io/name: cncf-demo
+    devImage: ghcr.io/loft-sh/devspace-containers/go:1.18-alpine
+    sync:
+      - path: ./
+    terminal:
+      command: ./devspace_start.sh
+    ssh:
+      enabled: true
+    proxyCommands:
+      - command: devspace
+      - command: kubectl
+      - command: helm
+      - gitCredentials: true
+    ports:
+      - port: "8080"
+    open:
+      - url: http://localhost:8080

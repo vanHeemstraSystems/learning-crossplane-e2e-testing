@@ -1,0 +1,53 @@
+#@data/values-schema
+---
+name: "cncf-demo"
+image:
+  repository: index.docker.io/vfarcic/cncf-demo
+  tag: latest
+replicas: 1
+ingress:
+  host: cncf-demo-dev.sillydemo.com
+  className: traefik
+tls:
+  enabled: false
+db:
+  id: cncf-demo-db-dev
+  insecure: false
+  enabled:
+    helm: false
+    crossplane:
+      local: false
+      google: false
+      aws: false
+      azure: false
+  size: small
+postgresql:
+  global:
+    persistence:
+      enabled: false
+  auth:
+    postgresPassword: postgres
+  primary:
+    initdb:
+      scripts:
+        00_init_script.sh: |
+          export PGPASSWORD=$POSTGRES_PASSWORD
+          psql -U postgres -c 'CREATE DATABASE "cncf-demo";'
+schemahero:
+  enabled: false
+fga:
+  enabled: false
+  url: ""
+  storeId: ""
+  modeId: ""
+otel:
+  enabled: false
+  jaegerAddr: "http://jaeger-collector.monitoring:4318"
+logging:
+  enabled: false
+istio:
+  enabled: false
+  host: ""
+progressiveDelivery:
+  enabled: false
+  type: "argo-rollouts"

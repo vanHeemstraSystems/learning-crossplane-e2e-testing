@@ -1,0 +1,17 @@
+apiVersion: devopstoolkit.live/v1alpha1
+kind: SQLClaim
+metadata:
+  name: silly-demo-db
+spec:
+  id: silly-demo-db-20250123031638
+  compositionSelector:
+    matchLabels:
+      provider: azure
+      db: postgresql
+  parameters:
+    version: '11'
+    size: small
+    region: eastus
+    databases:
+    - db-01
+    - db-02

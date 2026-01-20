@@ -1,0 +1,79 @@
+{{- if .Values.schemahero.enabled }}
+---
+
+apiVersion: databases.schemahero.io/v1alpha4
+kind: Database
+metadata:
+  name: {{ template "name" . }}
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+spec:
+  immediateDeploy: true
+  connection:
+    postgres:
+      host:
+        {{- if or (.Values.db.enabled.helm) (.Values.db.enabled.crossplane.local) }}
+        value: {{ template "name" . }}-postgresql
+        {{- end }}
+        {{- if or (.Values.db.enabled.crossplane.aws) (.Values.db.enabled.crossplane.azure) (.Values.db.enabled.crossplane.google) }}
+        valueFrom:
+          secretKeyRef:
+            name: {{ .Values.db.id }}
+            key: endpoint
+        {{- end }}
+      user:
+        {{- if or (.Values.db.enabled.helm) (.Values.db.enabled.crossplane.local) }}
+        value: postgres
+        {{- end }}
+        {{- if .Values.db.enabled.crossplane.aws }}
+        value: masteruser
+        {{- end }}
+        {{- if or (.Values.db.enabled.crossplane.azure) (.Values.db.enabled.crossplane.google) }}
+        valueFrom:
+          secretKeyRef:
+            name: {{ .Values.db.id }}
+            key: username
+        {{- end }}
+      password:
+        valueFrom:
+          secretKeyRef:
+            {{- if or (.Values.db.enabled.helm) (.Values.db.enabled.crossplane.local) }}
+            name: {{ template "name" . }}-postgresql
+            key: postgres-password
+            {{- end }}
+            {{- if or (.Values.db.enabled.crossplane.aws) (.Values.db.enabled.crossplane.google) (.Values.db.enabled.crossplane.azure) }}
+            name: {{ .Values.db.id }}
+            key: password
+            {{- end }}
+      port:
+        value: "5432"
+      dbname:
+        value: {{ .Values.db.id }}
+      sslmode:
+        value: prefer
+
+---
+
+apiVersion: schemas.schemahero.io/v1alpha4
+kind: Table
+metadata:
+  name: {{ template "name" . }}-videos
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+spec:
+  database: {{ .Values.db.id }}
+  name: videos
+  schema:
+    postgres:
+      primaryKey:
+      - id
+      columns:
+      - name: id
+        type: text
+        constraints:
+          notNull: true
+      - name: title
+        type: text
+        constraints:
+          notNull: true
+{{- end }}

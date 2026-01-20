@@ -1,0 +1,52 @@
+---
+
+apiVersion: databases.schemahero.io/v1alpha4
+kind: Database
+metadata:
+  name: cncf-demo
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+spec:
+  immediateDeploy: true
+  connection:
+    postgres:
+      host:
+        value: postgresql
+      user:
+        value: postgres
+      password:
+        valueFrom:
+          secretKeyRef:
+            name: postgresql
+            key: postgres-password
+      port:
+        value: "5432"
+      dbname:
+        value: cncf-demo-db
+      sslmode:
+        value: prefer
+
+---
+
+apiVersion: schemas.schemahero.io/v1alpha4
+kind: Table
+metadata:
+  name: cncf-demo-videos
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+spec:
+  database: cncf-demo-db
+  name: videos
+  schema:
+    postgres:
+      primaryKey:
+      - id
+      columns:
+      - name: id
+        type: text
+        constraints:
+          notNull: true
+      - name: title
+        type: text
+        constraints:
+          notNull: true

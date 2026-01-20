@@ -1,0 +1,72 @@
+{{- if or (.Values.db.enabled.crossplane.local) (.Values.db.enabled.crossplane.google) (.Values.db.enabled.crossplane.aws) (.Values.db.enabled.crossplane.azure) }}
+---
+
+apiVersion: devopstoolkitseries.com/v1alpha1
+kind: SQLClaim
+metadata:
+  name: {{ template "name" . }}
+spec:
+  id: {{ .Values.db.id }}
+  compositionSelector:
+    matchLabels:
+      {{- if .Values.db.enabled.crossplane.local }}
+      provider: local-k8s
+      {{- end }}
+      {{- if .Values.db.enabled.crossplane.google }}
+      provider: google
+      {{- end }}
+      {{- if .Values.db.enabled.crossplane.azure }}
+      provider: azure
+      {{- end }}
+      {{- if .Values.db.enabled.crossplane.aws }}
+      provider: aws
+      {{- end }}
+      db: postgresql
+  parameters:
+    {{- if or (.Values.db.enabled.crossplane.local) (.Values.db.enabled.crossplane.azure) (.Values.db.enabled.crossplane.google) }}
+    version: "11"
+    {{- end }}
+    {{- if .Values.db.enabled.crossplane.aws }}
+    version: "16.5"
+    {{- end }}
+    size: {{ .Values.db.size }}
+    databases:
+    - {{ .Values.db.id }}
+
+{{- end }}
+{{- if or (.Values.db.enabled.crossplane.google) (.Values.db.enabled.crossplane.azure) (.Values.db.enabled.crossplane.aws) }}
+
+{{- if .Values.db.insecure }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Values.db.id }}-password
+data:
+  password: T1QrOXZQcDhMdXhoeFVQWVpLSk1kUG1YM04xTzBTd3YzWG5ZVjI0UFZzcz0=
+{{- else }}
+---
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: {{ .Values.db.id }}-password
+spec:
+  refreshInterval: 1m
+  secretStoreRef:
+    kind: ClusterSecretStore
+    {{- if .Values.db.enabled.crossplane.google }}
+    name: google
+    {{- else if .Values.db.enabled.crossplane.azure }}
+    name: azure
+    {{- else }}
+    name: aws
+    {{- end }}
+  target:
+    name: {{ .Values.db.id }}-password
+    creationPolicy: Owner
+  dataFrom:
+  - extract:
+      key: production-postgresql
+{{- end }}
+
+{{- end }}

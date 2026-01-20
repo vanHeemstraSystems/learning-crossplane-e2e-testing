@@ -1,0 +1,46 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kbld.k14s.io/images: |
+      - origins:
+        - local:
+            path: /Users/vfarcic/code/cncf-demo
+        - git:
+            dirty: true
+            remoteURL: https://github.com/vfarcic/cncf-demo
+            sha: 880687a0815a64134c035aec1d70416e290c68fc
+        url: kbld:cncf-demo-sha256-bd01e22dd034a9710c287835b88223fc85f63bc38db35d297cab6da8d8f3552e
+  labels:
+    app.kubernetes.io/name: cncf-demo
+  name: cncf-demo
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cncf-demo
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cncf-demo
+    spec:
+      containers:
+      - image: kbld:cncf-demo-sha256-bd01e22dd034a9710c287835b88223fc85f63bc38db35d297cab6da8d8f3552e
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 8080
+        name: main
+        ports:
+        - containerPort: 8080
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 8080
+        resources:
+          limits:
+            cpu: 500m
+            memory: 512Mi
+          requests:
+            cpu: 250m
+            memory: 256Mi
