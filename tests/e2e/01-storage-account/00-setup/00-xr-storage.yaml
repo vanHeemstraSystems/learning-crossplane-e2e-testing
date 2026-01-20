@@ -1,1 +1,18 @@
-
+apiVersion: storage.example.io/v1alpha1
+kind: XStorageAccount
+metadata:
+name: test-storage-e2e-001
+spec:
+parameters:
+location: westeurope
+accountTier: Standard
+replicationType: LRS
+resourceGroupName: crossplane-e2e-test-rg
+tags:
+environment: test
+purpose: e2e-testing
+test: e2e
+compositionSelector:
+matchLabels:
+provider: azure
+type: standard
