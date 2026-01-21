@@ -8,8 +8,7 @@ commands:
   
   # Get the storage account name from the XR status
   
-  STORAGE_NAME=$(kubectl get xstorageaccount test-storage-e2e-001   
-  -o jsonpath=’{.status.storageAccountName}’)
+  STORAGE_NAME="$(kubectl get xstorageaccount test-storage-e2e-001 -n default -o jsonpath='{.status.storageAccountName}')"
   
   if [ -z "$STORAGE_NAME" ]; then
   echo "ERROR: Storage account name not found in XR status"
@@ -20,11 +19,11 @@ commands:
   
   # Verify the storage account exists in Azure
   
-  PROVISION_STATE=$(az storage account show   
-  –name "$STORAGE_NAME"   
-  –resource-group crossplane-e2e-test-rg   
-  –query "provisioningState"   
-  –output tsv 2>/dev/null)
+  PROVISION_STATE="$(az storage account show \
+    --name "$STORAGE_NAME" \
+    --resource-group crossplane-e2e-test-rg \
+    --query "provisioningState" \
+    --output tsv 2>/dev/null)"
   
   if [ "$PROVISION_STATE" != "Succeeded" ]; then
   echo "ERROR: Storage account provisioning state is not 'Succeeded', got: $PROVISION_STATE"

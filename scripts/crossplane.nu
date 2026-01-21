@@ -254,10 +254,17 @@ Press any key to continue.
     } | to yaml | kubectl apply --filename -
 
     {
-        apiVersion: "pkg.crossplane.io/v1alpha1"
-        kind: "ControllerConfig"
+        apiVersion: "pkg.crossplane.io/v1beta1"
+        kind: "DeploymentRuntimeConfig"
         metadata: { name: "crossplane-provider-helm" }
-        spec: { serviceAccountName: "crossplane-provider-helm" }
+        spec: {
+            deploymentTemplate: {
+                spec: {
+                    selector: {}
+                    template: { spec: { serviceAccountName: "crossplane-provider-helm" } }
+                }
+            }
+        }
     } | to yaml | kubectl apply --filename -
 
     {
@@ -266,7 +273,7 @@ Press any key to continue.
         metadata: { name: "crossplane-provider-helm" }
         spec: {
             package: "xpkg.upbound.io/crossplane-contrib/provider-helm:v0.19.0"
-            controllerConfigRef: { name: "crossplane-provider-helm" }
+            runtimeConfigRef: { name: "crossplane-provider-helm" }
         }
     } | to yaml | kubectl apply --filename -
 
@@ -296,10 +303,17 @@ Press any key to continue.
     } | to yaml | kubectl apply --filename -
 
     {
-        apiVersion: "pkg.crossplane.io/v1alpha1"
-        kind: "ControllerConfig"
+        apiVersion: "pkg.crossplane.io/v1beta1"
+        kind: "DeploymentRuntimeConfig"
         metadata: { name: "crossplane-provider-kubernetes" }
-        spec: { serviceAccountName: "crossplane-provider-kubernetes" }
+        spec: {
+            deploymentTemplate: {
+                spec: {
+                    selector: {}
+                    template: { spec: { serviceAccountName: "crossplane-provider-kubernetes" } }
+                }
+            }
+        }
     } | to yaml | kubectl apply --filename -
 
     {
@@ -308,7 +322,7 @@ Press any key to continue.
         metadata: { name: "crossplane-provider-kubernetes" }
         spec: {
             package: "xpkg.upbound.io/crossplane-contrib/provider-kubernetes:v0.15.0"
-            controllerConfigRef: { name: "crossplane-provider-kubernetes" }
+            runtimeConfigRef: { name: "crossplane-provider-kubernetes" }
         }
     } | to yaml | kubectl apply --filename -
 

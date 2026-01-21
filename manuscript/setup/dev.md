@@ -75,7 +75,7 @@ export NODE_SIZE="Standard_D2s_v3"
 
 # Crossplane Configuration
 export CROSSPLANE_NAMESPACE="crossplane-system"
-export CROSSPLANE_VERSION="1.15.0"  # Latest stable v1.x (v2.0 coming soon)
+export CROSSPLANE_VERSION="2.1.0"  # Crossplane v2.x (pin to the latest patch)
 
 # Testing Configuration
 export TEST_RESOURCE_GROUP="crossplane-e2e-test-rg"
@@ -383,9 +383,8 @@ spec:
   names:
     kind: XStorageAccount
     plural: xstorageaccounts
-  claimNames:
-    kind: StorageAccount
-    plural: storageaccounts
+  # Crossplane v2: namespaced XRs don't support claims.
+  scope: Namespaced
   versions:
   - name: v1alpha1
     served: true
@@ -417,6 +416,11 @@ spec:
                   resourceGroupName:
                     type: string
                     description: Azure resource group name
+                  tags:
+                    type: object
+                    description: Additional tags for the storage account
+                    additionalProperties:
+                      type: string
                 required:
                 - resourceGroupName
             required:
@@ -456,9 +460,29 @@ spec:
       apiVersion: pt.fn.crossplane.io/v1beta1
       kind: Resources
       resources:
+      # Crossplane v2: use namespaced Managed Resources (the `.m.` API groups).
+
+      - name: resourcegroup
+        base:
+          apiVersion: azure.m.upbound.io/v1beta1
+          kind: ResourceGroup
+          spec:
+            forProvider:
+              location: westeurope
+              tags:
+                managedBy: crossplane
+                environment: test
+        patches:
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.parameters.location
+          toFieldPath: spec.forProvider.location
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.parameters.resourceGroupName
+          toFieldPath: metadata.name
+
       - name: storageaccount
         base:
-          apiVersion: storage.azure.upbound.io/v1beta2
+          apiVersion: storage.azure.m.upbound.io/v1beta2
           kind: Account
           spec:
             forProvider:
@@ -485,24 +509,10 @@ spec:
         - type: ToCompositeFieldPath
           fromFieldPath: status.atProvider.primaryBlobEndpoint
           toFieldPath: status.primaryEndpoint
-      
-      - name: resourcegroup
-        base:
-          apiVersion: azure.upbound.io/v1beta1
-          kind: ResourceGroup
-          spec:
-            forProvider:
-              location: westeurope
-              tags:
-                managedBy: crossplane
-                environment: test
-        patches:
-        - type: FromCompositeFieldPath
-          fromFieldPath: spec.parameters.location
-          toFieldPath: spec.forProvider.location
-        - type: FromCompositeFieldPath
-          fromFieldPath: spec.parameters.resourceGroupName
-          toFieldPath: metadata.name
+        readinessChecks:
+        - type: MatchString
+          fieldPath: status.atProvider.provisioningState
+          matchString: Succeeded
   
   - step: auto-ready
     functionRef:
@@ -561,6 +571,7 @@ apiVersion: storage.example.io/v1alpha1
 kind: XStorageAccount
 metadata:
   name: test-storage-e2e-001
+  namespace: default
 spec:
   parameters:
     location: westeurope
@@ -579,6 +590,7 @@ apiVersion: storage.example.io/v1alpha1
 kind: XStorageAccount
 metadata:
   name: test-storage-e2e-001
+  namespace: default
 status:
   conditions:
   - type: Ready
@@ -589,9 +601,10 @@ EOF
 
 # Create test case - Verify Managed Resources
 cat <<'EOF' > tests/e2e/01-storage-account/01-verify/00-assert-storage.yaml
-apiVersion: storage.azure.upbound.io/v1beta2
+apiVersion: storage.azure.m.upbound.io/v1beta2
 kind: Account
 metadata:
+  namespace: default
   ownerReferences:
   - apiVersion: storage.example.io/v1alpha1
     kind: XStorageAccount
@@ -610,6 +623,7 @@ commands:
 - script: |
     # Get the storage account name from the XR
     STORAGE_NAME=$(kubectl get xstorageaccount test-storage-e2e-001 \
+      -n default \
       -o jsonpath='{.status.storageAccountName}')
     
     # Verify the storage account exists in Azure
@@ -628,6 +642,7 @@ apiVersion: storage.example.io/v1alpha1
 kind: XStorageAccount
 metadata:
   name: test-storage-e2e-001
+  namespace: default
 $patch: delete
 EOF
 
@@ -638,7 +653,7 @@ kind: TestAssert
 commands:
 - script: |
     # Verify XR is deleted
-    ! kubectl get xstorageaccount test-storage-e2e-001 2>/dev/null
+    ! kubectl get xstorageaccount test-storage-e2e-001 -n default 2>/dev/null
     exit $?
 EOF
 ```
