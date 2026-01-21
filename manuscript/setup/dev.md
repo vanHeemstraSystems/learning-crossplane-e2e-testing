@@ -131,6 +131,19 @@ az aks create \
 # This will take 5-10 minutes...
 ```
 
+Troubleshooting:
+
+- If `az aks create` fails with `(MissingSubscriptionRegistration) The subscription is not registered to use namespace 'Microsoft.ContainerService'`, register the AKS resource provider and retry:
+
+```bash
+az provider register --namespace Microsoft.ContainerService
+az provider show --namespace Microsoft.ContainerService --query "registrationState" -o tsv
+```
+
+Wait until the state is `Registered`, then re-run `az aks create`.
+
+- If you see a warning like `docker_bridge_cidr is not a known attribute ... and will be ignored`, you can ignore it.
+
 ### 3. Configure kubectl
 
 ```bash
