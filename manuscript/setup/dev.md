@@ -82,6 +82,22 @@ export TEST_RESOURCE_GROUP="crossplane-e2e-test-rg"
 export TEST_TAG="purpose=e2e-testing"
 ```
 
+Verify the exported values:
+
+```bash
+echo "RESOURCE_GROUP=$RESOURCE_GROUP"
+echo "LOCATION=$LOCATION"
+echo "CLUSTER_NAME=$CLUSTER_NAME"
+echo "NODE_COUNT=$NODE_COUNT"
+echo "NODE_SIZE=$NODE_SIZE"
+echo "CROSSPLANE_NAMESPACE=$CROSSPLANE_NAMESPACE"
+echo "CROSSPLANE_VERSION=$CROSSPLANE_VERSION"
+echo "TEST_RESOURCE_GROUP=$TEST_RESOURCE_GROUP"
+echo "TEST_TAG=$TEST_TAG"
+```
+
+Tip: if your shell shows `dquote>` you likely started a command with an unclosed `"`. Press `Ctrl+C` to cancel and re-run the exports.
+
 ### 2. Create Azure Resources
 
 ```bash
@@ -89,7 +105,7 @@ export TEST_TAG="purpose=e2e-testing"
 az login
 
 # Set your subscription (if you have multiple)
-az account set --subscription "YOUR_SUBSCRIPTION_NAME_OR_ID"
+az account set --subscription "YOUR_SUBSCRIPTION_NAME_OR_ID" (here: Subscription Name: Pay-As-You-Go, Subscription ID: b94dca1d-3277-4aa8-b826-1b4324072838)
 
 # Verify current subscription
 az account show
