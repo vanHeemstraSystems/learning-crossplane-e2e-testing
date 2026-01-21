@@ -29,6 +29,40 @@ Or follow the manual steps below for more control.
 
 ## Manual Setup Steps
 
+### 0. Install prerequisites (macOS)
+
+If you're on macOS, you can install the prerequisites using Homebrew:
+
+```bash
+brew update
+brew install azure-cli kubectl helm jq wget tree
+brew install fluxcd/tap/flux
+brew install crossplane
+```
+
+Alternative (often faster): install Azure CLI via pipx (recommended if Homebrew `azure-cli` is slow):
+
+```bash
+brew install pipx
+pipx ensurepath
+
+# Restart your shell after ensurepath, then:
+pipx install azure-cli
+```
+
+Verify the installations:
+
+```bash
+az version
+kubectl version --client
+helm version
+jq --version
+flux --version
+crossplane version
+```
+
+If any of these fail, look at the output to fix it.
+
 ### 1. Set Environment Variables
 
 ```bash
