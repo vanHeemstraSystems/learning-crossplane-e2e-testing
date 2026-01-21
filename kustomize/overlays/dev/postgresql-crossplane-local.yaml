@@ -13,5 +13,6 @@ spec:
   parameters:
     version: "13.4"
     size: small
-  writeConnectionSecretToRef:
-    name: cncf-demo-postgresql
+  # Crossplane v2: composite resources no longer have native connection details support.
+  # Don't rely on claim/XR-level `writeConnectionSecretToRef`; instead compose your own
+  # connection Secret (or use External Secrets Operator) as described in the docs.
