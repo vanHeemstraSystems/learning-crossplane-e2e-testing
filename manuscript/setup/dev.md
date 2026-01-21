@@ -35,7 +35,7 @@ If you're on macOS, you can install the prerequisites using Homebrew:
 
 ```bash
 brew update
-brew install azure-cli kubectl helm jq wget tree
+brew install azure-cli kubectl helm jq wget tree k9s
 brew install fluxcd/tap/flux
 brew install crossplane
 ```
@@ -59,6 +59,7 @@ helm version
 jq --version
 flux --version
 crossplane version
+k9s version
 ```
 
 If any of these fail, look at the output to fix it.
@@ -156,6 +157,9 @@ az aks get-credentials \
 # Verify connection
 kubectl cluster-info
 kubectl get nodes
+
+# Optional (visual alternative to many kubectl "get" commands):
+# k9s
 ```
 
 ### 4. Install Crossplane
