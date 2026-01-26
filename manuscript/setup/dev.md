@@ -37,6 +37,8 @@ If you're on macOS, you can install the prerequisites using Homebrew:
 brew update
 brew install azure-cli kubectl helm jq wget tree k9s
 brew install fluxcd/tap/flux
+# Install the Crossplane CLI (client only).
+# Note: this does NOT install Crossplane into your Kubernetes cluster.
 brew install crossplane
 ```
 
@@ -59,6 +61,8 @@ helm version
 jq --version
 flux --version
 k9s version
+# Client-only version check (no cluster required):
+crossplane --version
 # NOTE: `crossplane version` prints the CLI version and then tries to contact
 # your *current* Kubernetes context to detect the installed Crossplane version.
 # If your cluster isn't reachable (common when the current context points to an
@@ -188,7 +192,7 @@ kubectl get nodes
 helm repo add crossplane-stable https://charts.crossplane.io/stable
 helm repo update
 
-# Install Crossplane
+# Install Crossplane *into your Kubernetes cluster* (server-side components)
 helm install crossplane \
   --namespace $CROSSPLANE_NAMESPACE \
   --create-namespace \
@@ -205,13 +209,14 @@ kubectl get pods -n $CROSSPLANE_NAMESPACE
 # crossplane-rbac-manager-xxx               1/1     Running   0          1m
 ```
 
-### 5. Install Crossplane CLI
+### 5. Install Crossplane CLI (client)
 
 ```bash
-# Download and install Crossplane CLI
+# On macOS, prefer Homebrew (client only):
+# brew install crossplane
+#
+# Alternative (any OS): download and install Crossplane CLI
 curl -sL "https://raw.githubusercontent.com/crossplane/crossplane/master/install.sh" | sh
-
-# Move to system path
 sudo mv crossplane /usr/local/bin/
 
 # Verify installation
