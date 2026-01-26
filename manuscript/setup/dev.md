@@ -58,8 +58,27 @@ kubectl version --client
 helm version
 jq --version
 flux --version
-crossplane version
 k9s version
+# NOTE: `crossplane version` prints the CLI version and then tries to contact
+# your *current* Kubernetes context to detect the installed Crossplane version.
+# If your cluster isn't reachable (common when the current context points to an
+# old/local cluster IP), you'll see a timeout like:
+# "unable to get crossplane version ... context deadline exceeded".
+#
+# Remedy: verify/switch your kubectl context, then retry.
+# If your current cluster is Docker-backed (Docker Desktop Kubernetes / kind / k3d),
+# make sure Docker Desktop is running first.
+# If your current context is `minikube` and the cluster is stopped, start it:
+# minikube status
+# minikube start
+# If the API server IP changed, refresh kubeconfig:
+# minikube update-context
+kubectl config current-context
+kubectl config get-contexts
+# kubectl config use-context <your-intended-context>
+kubectl cluster-info
+kubectl get nodes
+crossplane version
 ```
 
 If any of these fail, look at the output to fix it.
