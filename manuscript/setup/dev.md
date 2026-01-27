@@ -225,10 +225,10 @@ curl -sL "https://raw.githubusercontent.com/crossplane/crossplane/master/install
 sudo mv crossplane /usr/local/bin/
 
 # Verify installation
-crossplane version
+crossplane version  # On Windows crossplane --version
 ```
 
-==== WE ARE HERE ON MAC ====
+==== WE ARE HERE ON MAC AND WINDOWS ====
 
 ### 6. Create Azure Service Principal for Crossplane
 
