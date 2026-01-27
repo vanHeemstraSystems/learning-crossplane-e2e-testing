@@ -228,7 +228,7 @@ sudo mv crossplane /usr/local/bin/
 crossplane version  # On Windows crossplane --version
 ```
 
-==== WE ARE HERE ON MAC AND WINDOWS ====
+==== WE ARE HERE ON MAC ====
 
 ### 6. Create Azure Service Principal for Crossplane
 
@@ -284,6 +284,8 @@ subscription_id = $SUBSCRIPTION_ID"
 # Verify secret creation
 kubectl get secret azure-secret -n $CROSSPLANE_NAMESPACE
 ```
+
+==== WE ARE HERE ON WINDOWS ====
 
 ### 8. Install Azure Providers
 
