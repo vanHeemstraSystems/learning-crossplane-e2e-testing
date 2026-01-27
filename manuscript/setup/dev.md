@@ -65,6 +65,7 @@ helm version
 jq --version
 flux --version
 k9s version
+wget --version
 minikube version # Optional
 kind version # Optional
 # Client-only version check (no cluster required):
