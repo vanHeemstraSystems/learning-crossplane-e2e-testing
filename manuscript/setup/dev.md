@@ -285,8 +285,6 @@ subscription_id = $SUBSCRIPTION_ID"
 kubectl get secret azure-secret -n $CROSSPLANE_NAMESPACE
 ```
 
-==== WE ARE HERE ON WINDOWS ====
-
 ### 8. Install Azure Providers
 
 Crossplane v2 uses modular providers. Install the ones you need:
@@ -335,6 +333,8 @@ sleep 60
 # Check provider status
 kubectl get providers
 
+# Note: Postgresql seems not to install, we'll continue ...
+
 # Wait for all providers to be healthy
 kubectl wait provider --all \
   --for=condition=Healthy \
@@ -365,6 +365,8 @@ EOF
 # Verify ProviderConfig
 kubectl get providerconfig
 ```
+
+==== WE ARE HERE ON WINDOWS ====
 
 ### 10. Install Flux for GitOps
 
