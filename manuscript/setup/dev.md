@@ -12,6 +12,7 @@ This guide will help you set up an Azure Kubernetes Service (AKS) cluster with C
 - [Flux](https://fluxcd.io/flux/installation/) installed
 - [Crossplane Client](https://docs.crossplane.io/latest/cli/) installed
 - GitHub account and personal access token
+- [Minikube](https://minikube.sigs.k8s.io/docs/start/) or [Kind](https://kind.sigs.k8s.io/docs/user/quick-start/) installed: Optional
 
 ## Quick Start
 
