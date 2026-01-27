@@ -409,7 +409,7 @@ kubectl get pods -n flux-system
 # First install go: choco install golang
 # Then run: git clone https://github.com/kudobuilder/kuttl.git
 # cd kuttl
-# go build -o kuttle.exe ./cmd/kubectl-kuttl
+# go build -o kuttl.exe ./cmd/kubectl-kuttl
 # Move-Item kuttl.exe C:\Users\<YourUsername>\bin\
 
 KUTTL_VERSION=0.15.0
