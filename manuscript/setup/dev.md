@@ -114,15 +114,15 @@ export TEST_TAG="purpose=e2e-testing"                # On Windows set TEST_TAG="
 Verify the exported values:
 
 ```bash
-echo "RESOURCE_GROUP=$RESOURCE_GROUP"
-echo "LOCATION=$LOCATION"
-echo "CLUSTER_NAME=$CLUSTER_NAME"
-echo "NODE_COUNT=$NODE_COUNT"
-echo "NODE_SIZE=$NODE_SIZE"
-echo "CROSSPLANE_NAMESPACE=$CROSSPLANE_NAMESPACE"
-echo "CROSSPLANE_VERSION=$CROSSPLANE_VERSION"
-echo "TEST_RESOURCE_GROUP=$TEST_RESOURCE_GROUP"
-echo "TEST_TAG=$TEST_TAG"
+echo "RESOURCE_GROUP=$RESOURCE_GROUP"                # On Windows echo %RESOURCE_GROUP=$RESOURCE_GROUP%
+echo "LOCATION=$LOCATION"                            # On Windows echo %LOCATION=$LOCATION%
+echo "CLUSTER_NAME=$CLUSTER_NAME"                    # On Windows echo %CLUSTER_NAME=$CLUSTER_NAME%
+echo "NODE_COUNT=$NODE_COUNT"                        # On Windows echo %NODE_COUNT=$NODE_COUNT%
+echo "NODE_SIZE=$NODE_SIZE"                          # On Windows echo %NODE_SIZE=$NODE_SIZE%
+echo "CROSSPLANE_NAMESPACE=$CROSSPLANE_NAMESPACE"    # On Windows echo %CROSSPLANE_NAMESPACE=$CROSSPLANE_NAMESPACE%
+echo "CROSSPLANE_VERSION=$CROSSPLANE_VERSION"        # On Windows echo %CROSSPLANE_VERSION=$CROSSPLANE_VERSION%
+echo "TEST_RESOURCE_GROUP=$TEST_RESOURCE_GROUP"      # On Windows echo %TEST_RESOURCE_GROUP=$TEST_RESOURCE_GROUP%
+echo "TEST_TAG=$TEST_TAG"                            # On Windows echo %TEST_TAG=$TEST_TAG%
 ```
 
 Tip: if your shell shows `dquote>` you likely started a command with an unclosed `"`. Press `Ctrl+C` to cancel and re-run the exports.
