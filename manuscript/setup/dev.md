@@ -63,7 +63,7 @@ jq --version
 flux --version
 k9s version
 # Client-only version check (no cluster required):
-crossplane --version
+crossplane version # On Windows crossplane --version
 # NOTE: `crossplane version` prints the CLI version and then tries to contact
 # your *current* Kubernetes context to detect the installed Crossplane version.
 # If your cluster isn't reachable (common when the current context points to an
@@ -83,7 +83,7 @@ kubectl config get-contexts
 # kubectl config use-context <your-intended-context>
 kubectl cluster-info
 kubectl get nodes
-crossplane version
+crossplane version # On Windows crossplane --version
 ```
 
 If any of these fail, look at the output to fix it.
