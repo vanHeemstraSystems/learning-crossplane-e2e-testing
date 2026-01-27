@@ -412,6 +412,21 @@ kubectl get pods -n flux-system
 # go build -o kuttl.exe ./cmd/kubectl-kuttl
 # Move-Item kuttl.exe C:\Users\<YourUsername>\bin\
 
+# Installing Go (Golang) Without Admin Rights on Windows
+# Download the Go ZIP archive from the official Go download page.
+# Create a folder for Go installation in your user directory.
+# For example: Open Command Prompt and run: mkdir %USERPROFILE%\AppData\Local\Programs\Go
+# Navigate to the newly created folder: Run: cd %USERPROFILE%\AppData\Local\Programs\Go
+# Extract the contents of the downloaded ZIP archive into this folder.
+# Open the Environment Variables Editor: Press the ⊞ Win key, type Edit environment variables for your account, and select it.
+# Alternatively, run: rundll32 sysdm.cpl,EditEnvironmentVariables in Command Prompt.
+# Add the Go binary folder to the PATH: Under User variables, find or create the variable PATH.
+# Append: %USERPROFILE%\AppData\Local\Programs\Go\bin.
+# Create a new environment variable GOROOT: Set its value to: %USERPROFILE%\AppData\Local\Programs\Go.
+# Open a new Command Prompt or PowerShell window to apply the changes.
+# Verify the installation by running: go version.
+# You should see the installed Go version, e.g., go version go1.x.x windows/amd64.
+
 KUTTL_VERSION=0.15.0
 wget -q https://github.com/kudobuilder/kuttl/releases/download/v${KUTTL_VERSION}/kubectl-kuttl_${KUTTL_VERSION}_linux_x86_64
 chmod +x kubectl-kuttl_${KUTTL_VERSION}_linux_x86_64
