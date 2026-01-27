@@ -243,6 +243,8 @@ SP_OUTPUT=$(az ad sp create-for-rbac \
   --scopes /subscriptions/$SUBSCRIPTION_ID \
   --output json)
 
+**NOTE**: If you get an error like "ERROR: (MissingSubscription) The request did not have a subscription or a valid tenant level resource provider.", in Bash remove the leading slash in front of subscriptions (so --scopes subscriptions/$SUBSCRIPTION_ID \)
+
 # Extract credentials
 export AZURE_CLIENT_ID=$(echo $SP_OUTPUT | jq -r '.appId')
 export AZURE_CLIENT_SECRET=$(echo $SP_OUTPUT | jq -r '.password')
