@@ -406,6 +406,11 @@ kubectl get pods -n flux-system
 # Install kuttl (Kubernetes Test Tool)
 
 # For installation instruction for Windows, see https://github.com/kudobuilder/kuttl
+# First install go: choco install golang
+# Then run: git clone https://github.com/kudobuilder/kuttl.git
+# cd kuttl
+# go build -o kuttle.exe ./cmd/kubectl-kuttl
+# Move-Item kuttl.exe C:\Users\<YourUsername>\bin\
 
 KUTTL_VERSION=0.15.0
 wget -q https://github.com/kudobuilder/kuttl/releases/download/v${KUTTL_VERSION}/kubectl-kuttl_${KUTTL_VERSION}_linux_x86_64
