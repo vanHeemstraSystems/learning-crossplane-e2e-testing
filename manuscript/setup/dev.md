@@ -411,6 +411,14 @@ kubectl get pods -n flux-system
 # cd kuttl
 # go build -o kuttl.exe ./cmd/kubectl-kuttl
 # Move-Item kuttl.exe C:\Users\<YourUsername>\bin\
+# Open the Environment Variables Editor: Press the ⊞ Win key, type Edit environment variables for your account, and select it.
+# Alternatively, run: rundll32 sysdm.cpl,EditEnvironmentVariables in Command Prompt.
+# Add the Kuttl binary folder to the PATH: Under User variables, find or create the variable PATH.
+# Append: %USERPROFILE%\bin. 
+# Open a new Command Prompt or PowerShell window to apply the changes.
+# Verify the installation by running: kuttl version.
+# You should see the installed kuttl version, e.g.,
+# KUTTL Version: version.Info{GitVersion:"dev", GitCommit:"dev", BuildDate:"1970-01-01T00:00:00Z", GoVersion:"go1.25.6", Compiler:"gc", Platform:"windows/amd64"}
 
 # Installing Go (Golang) Without Admin Rights on Windows
 # Download the Go ZIP archive from the official [Go download page](https://go.dev/doc/install).
