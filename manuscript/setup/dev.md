@@ -64,6 +64,8 @@ helm version
 jq --version
 flux --version
 k9s version
+minikube version # Optional
+kind version # Optional
 # Client-only version check (no cluster required):
 crossplane version # On Windows crossplane --version
 # NOTE: `crossplane version` prints the CLI version and then tries to contact
