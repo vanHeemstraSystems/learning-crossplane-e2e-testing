@@ -366,8 +366,6 @@ EOF
 kubectl get providerconfig
 ```
 
-==== WE ARE HERE ON WINDOWS ====
-
 ### 10. Install Flux for GitOps
 
 ```bash
@@ -397,6 +395,8 @@ flux check
 # View Flux components
 kubectl get pods -n flux-system
 ```
+
+==== WE ARE HERE ON WINDOWS ====
 
 ### 11. Install E2E Testing Tools
 
