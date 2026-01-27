@@ -131,7 +131,7 @@ Tip: if your shell shows `dquote>` you likely started a command with an unclosed
 
 ```bash
 # Login to Azure
-az login
+az login        # If you want to login into an existing tenant, use az login --tenant TENANT_ID, where TENANT_ID is one of your tenant ids (a hash like 1db3a***-**-***-***-****)
 
 # Set your subscription (if you have multiple)
 az account set --subscription "YOUR_SUBSCRIPTION_NAME_OR_ID" (here: Subscription Name: Pay-As-You-Go, Subscription ID: b94dca1d-3277-4aa8-b826-1b4324072838)
