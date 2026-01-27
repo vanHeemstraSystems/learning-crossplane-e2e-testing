@@ -11,6 +11,7 @@ This guide will help you set up an Azure Kubernetes Service (AKS) cluster with C
 - [jq](https://bobbyhadz.com/blog/install-and-use-jq-on-windows) installed (for JSON parsing)
 - [Flux](https://fluxcd.io/flux/installation/) installed
 - [Crossplane Client](https://docs.crossplane.io/latest/cli/) installed
+- [wget](https://www.techbloat.com/how-to-install-wget-on-windows-11.html) installed
 - GitHub account and personal access token
 - [Minikube](https://minikube.sigs.k8s.io/docs/start/) or [Kind](https://kind.sigs.k8s.io/docs/user/quick-start/) installed: Optional
 
