@@ -378,7 +378,7 @@ curl -s https://fluxcd.io/install.sh | sudo bash
 flux check --pre
 
 # Set your GitHub details
-export GITHUB_USER="vanHeemstraSystems"
+export GITHUB_USER="organization-for-demos"
 export GITHUB_REPO="crossplane-e2e-fleet"
 export GITHUB_TOKEN="your-github-token"  # Create at https://github.com/settings/tokens
 
