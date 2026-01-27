@@ -404,6 +404,9 @@ kubectl get pods -n flux-system
 
 ```bash
 # Install kuttl (Kubernetes Test Tool)
+
+# For installation instruction for Windows, see https://github.com/kudobuilder/kuttl
+
 KUTTL_VERSION=0.15.0
 wget -q https://github.com/kudobuilder/kuttl/releases/download/v${KUTTL_VERSION}/kubectl-kuttl_${KUTTL_VERSION}_linux_x86_64
 chmod +x kubectl-kuttl_${KUTTL_VERSION}_linux_x86_64
