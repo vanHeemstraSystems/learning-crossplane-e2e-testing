@@ -96,19 +96,19 @@ If any of these fail, look at the output to fix it.
 
 ```bash
 # Azure Configuration
-export RESOURCE_GROUP="crossplane-e2e-rg"
-export LOCATION="westeurope"
-export CLUSTER_NAME="crossplane-e2e-aks"
-export NODE_COUNT=3
-export NODE_SIZE="Standard_D2s_v3"
+export RESOURCE_GROUP="crossplane-e2e-rg" # On Windows set RESOURCE_GROUP="crossplane-e2e-rg"
+export LOCATION="westeurope"              # On Windows set LOCATION="westeurope"
+export CLUSTER_NAME="crossplane-e2e-aks"  # On Windows set CLUSTER_NAME="crossplane-e2e-aks"
+export NODE_COUNT=3                       # On Windows set NODE_COUNT=3
+export NODE_SIZE="Standard_D2s_v3"        # On Windows set NODE_SIZE="Standard_D2s_v3"
 
 # Crossplane Configuration
-export CROSSPLANE_NAMESPACE="crossplane-system"
-export CROSSPLANE_VERSION="2.1.0"  # Crossplane v2.x (pin to the latest patch)
+export CROSSPLANE_NAMESPACE="crossplane-system" # On Windows set CROSSPLANE_NAMESPACE="crossplane-system"
+export CROSSPLANE_VERSION="2.1.0"  # Crossplane v2.x (pin to the latest patch) # On Windows set CROSSPLANE_VERSION="2.1.0"
 
 # Testing Configuration
-export TEST_RESOURCE_GROUP="crossplane-e2e-test-rg"
-export TEST_TAG="purpose=e2e-testing"
+export TEST_RESOURCE_GROUP="crossplane-e2e-test-rg"  # On Windows set TEST_RESOURCE_GROUP="crossplane-e2e-test-rg"
+export TEST_TAG="purpose=e2e-testing"                # On Windows set TEST_TAG="purpose=e2e-testing"
 ```
 
 Verify the exported values:
