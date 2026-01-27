@@ -413,7 +413,7 @@ kubectl get pods -n flux-system
 # Move-Item kuttl.exe C:\Users\<YourUsername>\bin\
 
 # Installing Go (Golang) Without Admin Rights on Windows
-# Download the Go ZIP archive from the official Go download page.
+# Download the Go ZIP archive from the official [Go download page](https://go.dev/doc/install).
 # Create a folder for Go installation in your user directory.
 # For example: Open Command Prompt and run: mkdir %USERPROFILE%\AppData\Local\Programs\Go
 # Navigate to the newly created folder: Run: cd %USERPROFILE%\AppData\Local\Programs\Go
