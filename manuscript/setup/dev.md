@@ -398,8 +398,6 @@ flux check
 kubectl get pods -n flux-system
 ```
 
-==== WE ARE HERE ON WINDOWS ====
-
 ### 11. Install E2E Testing Tools
 
 ```bash
@@ -441,11 +439,13 @@ chmod +x kubectl-kuttl_${KUTTL_VERSION}_linux_x86_64
 sudo mv kubectl-kuttl_${KUTTL_VERSION}_linux_x86_64 /usr/local/bin/kubectl-kuttl
 
 # Verify kuttl installation
-kubectl kuttl version
+kubectl kuttl version  # or kuttl version
 
 # Install Azure CLI (if not already installed)
 curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 ```
+
+==== WE ARE HERE ON WINDOWS ====
 
 ### 12. Create Test Directory Structure
 
