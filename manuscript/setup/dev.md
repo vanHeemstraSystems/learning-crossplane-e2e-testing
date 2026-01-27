@@ -9,7 +9,7 @@ This guide will help you set up an Azure Kubernetes Service (AKS) cluster with C
 - [Helm 3](https://helm.sh/docs/intro/install/) installed
 - [Git](https://git-scm.com/install/windows) installed
 - [jq](https://bobbyhadz.com/blog/install-and-use-jq-on-windows) installed (for JSON parsing)
-- [Flux](https://fluxcd.io/flux/installation/)
+- [Flux](https://fluxcd.io/flux/installation/) installed
 - GitHub account and personal access token
 
 ## Quick Start
