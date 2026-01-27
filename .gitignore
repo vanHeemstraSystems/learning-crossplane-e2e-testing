@@ -20,3 +20,6 @@
 # Ignore VSCode settings
 .vscode/
 .odo
+
+# Ignore credentials
+.azure-credentials
