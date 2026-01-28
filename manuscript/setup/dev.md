@@ -327,9 +327,12 @@ spec:
 apiVersion: pkg.crossplane.io/v1
 kind: Provider
 metadata:
-  name: provider-azure-postgresql
+  name: provider-azure-dbforpostgresql
 spec:
-  package: xpkg.upbound.io/upbound/provider-azure-postgresql:v1.3.0
+  # Azure Database for PostgreSQL (Flexible Server, etc.)
+  # Note: Use a version that exists in the Upbound registry / marketplace.
+  # At the time of writing, v2.3.0 is part of provider-family-azure v2.3.0.
+  package: xpkg.upbound.io/upbound/provider-azure-dbforpostgresql:v2.3.0
   packagePullPolicy: IfNotPresent
 ---
 apiVersion: pkg.crossplane.io/v1
@@ -345,10 +348,24 @@ EOF
 echo "Waiting for providers to install..."
 sleep 60
 
+# If the above command times out before it completes, your Minikube API server may be
+# paused/stopped. Restart Minikube and (optionally) disable auto-pause:
+minikube stop
+# Prevent auto-pause by setting a very large interval (some minikube versions reject `=0`):
+minikube start --auto-pause-interval=8760h
+# If you get an error like "can't create with that IP, address already in use" (Docker driver),
+# start Minikube on a different docker network/subnet:
+# minikube start --driver=docker --network=minikube-net --subnet=192.168.58.0/24 --auto-pause-interval=8760h
+minikube update-context
+kubectl get --raw='/healthz'
+# Only if the health check returns OK rerun previous command again.
+
 # Check provider status
 kubectl get providers
 
-# Note: Postgresql seems not to install, we'll continue ...
+# Note: If you previously used `provider-azure-postgresql`, it may show `INSTALLED=False`
+# due to an upstream package pull/unpack error. The correct Upbound provider is
+# `provider-azure-dbforpostgresql` (configured above).
 
 # Wait for all providers to be healthy
 kubectl wait provider --all \
