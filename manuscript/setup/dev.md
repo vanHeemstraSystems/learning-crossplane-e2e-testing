@@ -230,9 +230,11 @@ sudo mv crossplane /usr/local/bin/
 crossplane version  # On Windows crossplane --version
 ```
 
-==== WE ARE HERE ON MAC ====
-
 ### 6. Create Azure Service Principal for Crossplane
+
+**NOTE**: This step is **Azure-side** (it creates a Service Principal in your Azure tenant/subscription). If you are going through these steps on more than one computer, you can do this step once, then copy the output (the `.azure-credentials` file) to the other computer(s) and **skip this step** there. 
+
+However, next steps like creating the Kubernetes `azure-secret` (Step 7) and the `ProviderConfig` (Step 8 & 9) are **cluster-local** and must be applied to **each Kubernetes cluster / kubectl context** (e.g., your Windows Minikube vs your Mac Minikube are separate clusters).
 
 ```bash
 # Get your subscription ID
@@ -245,8 +247,7 @@ SP_OUTPUT=$(az ad sp create-for-rbac \
   --scopes /subscriptions/$SUBSCRIPTION_ID \
   --output json)
 
-**NOTE**: If you get an error like "ERROR: (MissingSubscription) The request did not have a subscription or a valid tenant level resource provider.",
-in Bash remove the leading slash in front of subscriptions (so --scopes subscriptions/$SUBSCRIPTION_ID \)
+# NOTE: If you get an error like "ERROR: (MissingSubscription) The request did not have a subscription or a valid tenant level resource provider.", in Bash remove the leading slash in front of subscriptions (so --scopes subscriptions/$SUBSCRIPTION_ID \)
 
 # Extract credentials
 export AZURE_CLIENT_ID=$(echo $SP_OUTPUT | jq -r '.appId')
@@ -259,6 +260,8 @@ echo "Client ID: $AZURE_CLIENT_ID"
 echo "Client Secret: $AZURE_CLIENT_SECRET"
 echo "Tenant ID: $AZURE_TENANT_ID"
 echo "Subscription ID: $SUBSCRIPTION_ID"
+
+# NOTE: Run below instructions from the root of the repository.
 
 # Save to file (gitignored)
 cat > .azure-credentials <<EOF
@@ -273,19 +276,29 @@ chmod 600 .azure-credentials
 
 ### 7. Create Kubernetes Secret for Azure Credentials
 
+**NOTE**: Run below instructions from the root of the repository.
+
+```bash
+export CROSSPLANE_NAMESPACE="crossplane-system"
+set -a; source .azure-credentials; set +a
+```
+
 ```bash
 # Create secret in Crossplane namespace
 kubectl create secret generic azure-secret \
-  --namespace $CROSSPLANE_NAMESPACE \
+  --namespace "$CROSSPLANE_NAMESPACE" \
   --from-literal=creds="[default]
 client_id = $AZURE_CLIENT_ID
 client_secret = $AZURE_CLIENT_SECRET
 tenant_id = $AZURE_TENANT_ID
-subscription_id = $SUBSCRIPTION_ID"
+subscription_id = $SUBSCRIPTION_ID" \
+  --dry-run=client -o yaml | kubectl apply -f -
 
 # Verify secret creation
-kubectl get secret azure-secret -n $CROSSPLANE_NAMESPACE
+kubectl get secret azure-secret -n "$CROSSPLANE_NAMESPACE"
 ```
+
+==== WE ARE HERE ON MAC ====
 
 ### 8. Install Azure Providers
 
