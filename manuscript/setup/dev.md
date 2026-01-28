@@ -375,8 +375,6 @@ kubectl wait provider --all \
 kubectl get pods -n $CROSSPLANE_NAMESPACE
 ```
 
-==== WE ARE HERE ON MAC ====
-
 ### 9. Create ProviderConfig
 
 ```bash
@@ -398,6 +396,9 @@ EOF
 # Verify ProviderConfig
 kubectl get providerconfig
 ```
+
+==== WE ARE HERE ON MAC ====
+
 
 ### 10. Install Flux for GitOps
 
