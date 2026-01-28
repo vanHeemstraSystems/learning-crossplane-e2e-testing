@@ -397,9 +397,6 @@ EOF
 kubectl get providerconfig
 ```
 
-==== WE ARE HERE ON MAC ====
-
-
 ### 10. Install Flux for GitOps
 
 ```bash
@@ -415,6 +412,16 @@ export GITHUB_REPO="crossplane-e2e-fleet"
 export GITHUB_TOKEN="your-github-token"  # Create at https://github.com/settings/tokens
 
 # Bootstrap Flux (this creates the repo if it doesn't exist)
+#
+# IMPORTANT (multi-computer / multi-cluster):
+# Flux reconciles ONLY the Kubernetes cluster it is installed into, but it will reconcile
+# whatever is in the Git repo path you point it at. If you bootstrap Flux on multiple
+# clusters (e.g., Windows Minikube and Mac Minikube) and use the SAME `--path`, then BOTH
+# clusters will apply the SAME manifests from that path, which can cause conflicts.
+#
+# Recommendation: use a unique path per cluster, for example:
+# - Windows Minikube: --path=./clusters/dev-win
+# - Mac Minikube:     --path=./clusters/dev-mac
 flux bootstrap github \
   --owner=$GITHUB_USER \
   --repository=$GITHUB_REPO \
@@ -429,6 +436,8 @@ flux check
 # View Flux components
 kubectl get pods -n flux-system
 ```
+
+==== WE ARE HERE ON MAC ====
 
 ### 11. Install E2E Testing Tools
 
