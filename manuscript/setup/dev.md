@@ -838,8 +838,6 @@ commands:
 EOF
 ```
 
-==== WE ARE HERE ON MAC ====
-
 ### 15. Create Helper Scripts
 
 ```bash
@@ -899,6 +897,8 @@ EOF
 # Make scripts executable
 chmod +x scripts/*.sh
 ```
+
+==== WE ARE HERE ON MAC ====
 
 ### 16. Create Flux GitOps Structure
 
