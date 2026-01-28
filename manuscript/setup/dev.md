@@ -497,8 +497,6 @@ kubectl kuttl version  # or kuttl version
 curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 ```
 
-==== WE ARE HERE ON WINDOWS AND MAC ====
-
 ### 12. Create Test Directory Structure
 
 ```bash
@@ -519,6 +517,8 @@ az group create \
 echo "Test directory structure created!"
 tree tests/e2e/
 ```
+
+==== WE ARE HERE ON WINDOWS AND MAC ====
 
 ### 13. Create Example XRD and Composition
 
