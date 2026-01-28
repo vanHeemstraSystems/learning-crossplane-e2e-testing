@@ -518,8 +518,6 @@ echo "Test directory structure created!"
 tree tests/e2e/
 ```
 
-==== WE ARE HERE ON WINDOWS AND MAC ====
-
 ### 13. Create Example XRD and Composition
 
 Let’s create a simple storage account example:
@@ -699,6 +697,8 @@ resources:
 - storage-accounts
 EOF
 
+==== WE ARE HERE ON WINDOWS ====
+
 # Install required Composition Functions
 cat <<EOF | kubectl apply -f -
 ---
@@ -728,6 +728,8 @@ kubectl apply -k apis/v1alpha1/storage-accounts
 kubectl get xrd
 kubectl get composition
 ```
+
+==== WE ARE HERE ON MAC ====
 
 ### 14. Create Example E2E Test
 
