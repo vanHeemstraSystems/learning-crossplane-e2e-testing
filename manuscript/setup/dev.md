@@ -729,8 +729,6 @@ kubectl get xrd
 kubectl get composition
 ```
 
-==== WE ARE HERE ON MAC ====
-
 ### 14. Create Example E2E Test
 
 ```bash
@@ -785,6 +783,7 @@ cat <<'EOF' > tests/e2e/storage-accounts/verify/assert-storage.yaml
 apiVersion: storage.azure.m.upbound.io/v1beta2
 kind: Account
 metadata:
+  name: test-storage-e2e-001
   namespace: default
   ownerReferences:
   - apiVersion: storage.example.io/v1alpha1
@@ -838,6 +837,8 @@ commands:
     exit $?
 EOF
 ```
+
+==== WE ARE HERE ON MAC ====
 
 ### 15. Create Helper Scripts
 

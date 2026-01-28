@@ -9,10 +9,6 @@ spec:
     accountTier: Standard
     replicationType: LRS
     resourceGroupName: crossplane-e2e-test-rg
-    tags:
-      environment: test
-      purpose: e2e-testing
-      test: e2e
   compositionSelector:
     matchLabels:
       provider: azure
