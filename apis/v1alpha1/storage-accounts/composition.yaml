@@ -1,0 +1,78 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: xstorageaccounts.storage.example.io
+  labels:
+    provider: azure
+    type: standard
+spec:
+  compositeTypeRef:
+    apiVersion: storage.example.io/v1alpha1
+    kind: XStorageAccount
+  
+  mode: Pipeline
+  pipeline:
+  - step: patch-and-transform
+    functionRef:
+      name: function-patch-and-transform
+    input:
+      apiVersion: pt.fn.crossplane.io/v1beta1
+      kind: Resources
+      resources:
+      # Crossplane v2: use namespaced Managed Resources (the `.m.` API groups).
+
+      - name: resourcegroup
+        base:
+          apiVersion: azure.m.upbound.io/v1beta1
+          kind: ResourceGroup
+          spec:
+            forProvider:
+              location: westeurope
+              tags:
+                managedBy: crossplane
+                environment: test
+        patches:
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.parameters.location
+          toFieldPath: spec.forProvider.location
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.parameters.resourceGroupName
+          toFieldPath: metadata.name
+
+      - name: storageaccount
+        base:
+          apiVersion: storage.azure.m.upbound.io/v1beta2
+          kind: Account
+          spec:
+            forProvider:
+              accountReplicationType: LRS
+              accountTier: Standard
+              resourceGroupNameSelector:
+                matchControllerRef: true
+              tags:
+                managedBy: crossplane
+                environment: test
+        patches:
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.parameters.location
+          toFieldPath: spec.forProvider.location
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.parameters.accountTier
+          toFieldPath: spec.forProvider.accountTier
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.parameters.replicationType
+          toFieldPath: spec.forProvider.accountReplicationType
+        - type: ToCompositeFieldPath
+          fromFieldPath: metadata.name
+          toFieldPath: status.storageAccountName
+        - type: ToCompositeFieldPath
+          fromFieldPath: status.atProvider.primaryBlobEndpoint
+          toFieldPath: status.primaryEndpoint
+        readinessChecks:
+        - type: MatchString
+          fieldPath: status.atProvider.provisioningState
+          matchString: Succeeded
+  
+  - step: auto-ready
+    functionRef:
+      name: function-auto-ready
