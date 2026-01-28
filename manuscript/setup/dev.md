@@ -525,11 +525,19 @@ tree tests/e2e/
 Let’s create a simple storage account example:
 
 ```bash
-# Create XRD directory
-mkdir -p config/xrds
+# Create API directory structure (Upbound-style)
+#
+# Folder structure:
+# apis/v1alpha1/
+#   kustomization.yaml
+#   storage-accounts/
+#     xrd.yaml
+#     composition.yaml
+#     kustomization.yaml
+mkdir -p apis/v1alpha1/storage-accounts
 
 # Create Storage Account XRD
-cat <<'EOF' > config/xrds/xstorage-account.yaml
+cat <<'EOF' > apis/v1alpha1/storage-accounts/xrd.yaml
 apiVersion: apiextensions.crossplane.io/v1
 kind: CompositeResourceDefinition
 metadata:
@@ -590,11 +598,8 @@ spec:
                 type: string
 EOF
 
-# Create Compositions directory
-mkdir -p config/compositions
-
 # Create Storage Account Composition
-cat <<'EOF' > config/compositions/storage-account.yaml
+cat <<'EOF' > apis/v1alpha1/storage-accounts/composition.yaml
 apiVersion: apiextensions.crossplane.io/v1
 kind: Composition
 metadata:
@@ -675,6 +680,22 @@ spec:
       name: function-auto-ready
 EOF
 
+# Kustomize (so you can `kubectl apply -k` this API package)
+cat <<'EOF' > apis/v1alpha1/storage-accounts/kustomization.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- xrd.yaml
+- composition.yaml
+EOF
+
+cat <<'EOF' > apis/v1alpha1/kustomization.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- storage-accounts
+EOF
+
 # Install required Composition Functions
 cat <<EOF | kubectl apply -f -
 ---
@@ -698,8 +719,7 @@ sleep 30
 kubectl wait function --all --for=condition=Healthy --timeout=300s
 
 # Apply XRD and Composition
-kubectl apply -f config/xrds/xstorage-account.yaml
-kubectl apply -f config/compositions/storage-account.yaml
+kubectl apply -k apis/v1alpha1/storage-accounts
 
 # Verify
 kubectl get xrd
@@ -885,7 +905,7 @@ cat <<EOF > flux/clusters/dev/crossplane/kustomization.yaml
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-- ../../../config/xrds
+- ../../../apis/v1alpha1
 EOF
 
 # Create Flux Kustomization for Compositions
@@ -893,7 +913,7 @@ cat <<EOF > flux/clusters/dev/compositions/kustomization.yaml
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-- ../../../config/compositions
+- ../../../apis/v1alpha1
 EOF
 
 # Create Flux GitRepository
@@ -916,11 +936,11 @@ cat <<EOF > flux/clusters/dev/crossplane-kustomizations.yaml
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: crossplane-xrds
+  name: crossplane-apis
   namespace: flux-system
 spec:
   interval: 5m
-  path: ./config/xrds
+  path: ./apis/v1alpha1
   prune: true
   sourceRef:
     kind: GitRepository
@@ -929,21 +949,6 @@ spec:
   - apiVersion: apiextensions.crossplane.io/v1
     kind: CompositeResourceDefinition
     name: xstorageaccounts.storage.example.io
----
-apiVersion: kustomize.toolkit.fluxcd.io/v1
-kind: Kustomization
-metadata:
-  name: crossplane-compositions
-  namespace: flux-system
-spec:
-  interval: 5m
-  path: ./config/compositions
-  prune: true
-  sourceRef:
-    kind: GitRepository
-    name: crossplane-configs
-  dependsOn:
-  - name: crossplane-xrds
 EOF
 ```
 
