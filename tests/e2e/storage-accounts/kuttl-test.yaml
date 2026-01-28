@@ -5,5 +5,4 @@ metadata:
 timeout: 600
 parallel: 1
 testDirs:
-
 - .

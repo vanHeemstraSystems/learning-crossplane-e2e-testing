@@ -478,14 +478,14 @@ log_info "Step 13/16: Creating project directory structure..."
 # Create directories
 
 mkdir -p config/{xrds,compositions,provider-configs}
-mkdir -p tests/e2e/{01-storage-account,02-virtual-network,03-postgresql-database,04-integration}
+mkdir -p tests/e2e/{storage-accounts,virtual-networks,postgresql-databases,integrations}
 mkdir -p scripts
 mkdir -p flux/clusters/dev/{crossplane,compositions,xrs}
 
 # Create subdirectories for tests
 
 for dir in tests/e2e/*/; do
-mkdir -p "$dir"/{00-setup,01-verify,02-cleanup}
+mkdir -p "$dir"/{setup,verify,cleanup}
 done
 
 log_success "Directory structure created"

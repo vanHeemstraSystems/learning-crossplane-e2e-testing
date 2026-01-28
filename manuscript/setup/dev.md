@@ -501,11 +501,11 @@ curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 
 ```bash
 # Create E2E test directory structure
-mkdir -p tests/e2e/{01-storage-account,02-virtual-network,03-postgresql-database,04-integration}
+mkdir -p tests/e2e/{storage-accounts,virtual-networks,postgresql-databases,integrations}
 
 # Create each test subdirectories
 for dir in tests/e2e/*/; do
-  mkdir -p "$dir"/{00-setup,01-verify,02-cleanup}
+  mkdir -p "$dir"/{setup,verify,cleanup}
 done
 
 # Create test resource group for E2E tests
@@ -735,7 +735,7 @@ kubectl get composition
 
 ```bash
 # Create test configuration
-cat <<'EOF' > tests/e2e/01-storage-account/kuttl-test.yaml
+cat <<'EOF' > tests/e2e/storage-accounts/kuttl-test.yaml
 apiVersion: kuttl.dev/v1beta1
 kind: TestSuite
 metadata:
@@ -747,7 +747,7 @@ testDirs:
 EOF
 
 # Create test case - Setup
-cat <<'EOF' > tests/e2e/01-storage-account/00-setup/00-xr-storage.yaml
+cat <<'EOF' > tests/e2e/storage-accounts/setup/xr-storage.yaml
 apiVersion: storage.example.io/v1alpha1
 kind: XStorageAccount
 metadata:
@@ -766,7 +766,7 @@ spec:
 EOF
 
 # Create test case - Assert XR is created
-cat <<'EOF' > tests/e2e/01-storage-account/00-setup/00-assert.yaml
+cat <<'EOF' > tests/e2e/storage-accounts/setup/assert.yaml
 apiVersion: storage.example.io/v1alpha1
 kind: XStorageAccount
 metadata:
@@ -781,7 +781,7 @@ status:
 EOF
 
 # Create test case - Verify Managed Resources
-cat <<'EOF' > tests/e2e/01-storage-account/01-verify/00-assert-storage.yaml
+cat <<'EOF' > tests/e2e/storage-accounts/verify/assert-storage.yaml
 apiVersion: storage.azure.m.upbound.io/v1beta2
 kind: Account
 metadata:
@@ -797,7 +797,7 @@ status:
 EOF
 
 # Create test case - Verify with Azure CLI
-cat <<'EOF' > tests/e2e/01-storage-account/01-verify/01-verify-azure.yaml
+cat <<'EOF' > tests/e2e/storage-accounts/verify/verify-azure.yaml
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
 commands:
@@ -818,7 +818,7 @@ commands:
 EOF
 
 # Create test case - Cleanup
-cat <<'EOF' > tests/e2e/01-storage-account/02-cleanup/00-delete.yaml
+cat <<'EOF' > tests/e2e/storage-accounts/cleanup/delete.yaml
 apiVersion: storage.example.io/v1alpha1
 kind: XStorageAccount
 metadata:
@@ -828,7 +828,7 @@ $patch: delete
 EOF
 
 # Create test case - Assert cleanup completed
-cat <<'EOF' > tests/e2e/01-storage-account/02-cleanup/00-assert.yaml
+cat <<'EOF' > tests/e2e/storage-accounts/cleanup/assert.yaml
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
 commands:
@@ -857,7 +857,7 @@ kubectl config current-context
 
 # Run kuttl tests
 kubectl kuttl test \
-  --config tests/e2e/kuttl-test.yaml \
+  tests/e2e \
   --timeout 900 \
   --start-kind=false
 
@@ -1011,7 +1011,7 @@ chmod +x scripts/verify-setup.sh
 
 ```bash
 # Run the storage account test
-kubectl kuttl test tests/e2e/01-storage-account/
+kubectl kuttl test tests/e2e/storage-accounts/
 
 # Watch the test progress in another terminal
 watch kubectl get xstorageaccount,account,resourcegroup

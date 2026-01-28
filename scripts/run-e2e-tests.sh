@@ -75,7 +75,7 @@ echo “  –help, -h         Show this help message”
 echo “”
 echo “Examples:”
 echo “  $0                                    # Run all tests”
-echo “  $0 tests/e2e/01-storage-account       # Run specific test”
+echo “  $0 tests/e2e/storage-accounts        # Run specific test”
 echo “  $0 –parallel 3 –timeout 1200        # Run with custom settings”
 exit 0
 ;;
