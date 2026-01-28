@@ -437,8 +437,6 @@ flux check
 kubectl get pods -n flux-system
 ```
 
-==== WE ARE HERE ON MAC ====
-
 ### 11. Install E2E Testing Tools
 
 ```bash
@@ -475,9 +473,22 @@ kubectl get pods -n flux-system
 # You should see the installed Go version, e.g., go version go1.x.x windows/amd64.
 
 KUTTL_VERSION=0.15.0
-wget -q https://github.com/kudobuilder/kuttl/releases/download/v${KUTTL_VERSION}/kubectl-kuttl_${KUTTL_VERSION}_linux_x86_64
-chmod +x kubectl-kuttl_${KUTTL_VERSION}_linux_x86_64
-sudo mv kubectl-kuttl_${KUTTL_VERSION}_linux_x86_64 /usr/local/bin/kubectl-kuttl
+
+# macOS (Darwin): download the correct darwin binary for your CPU architecture
+ARCH="$(uname -m)" # arm64 or x86_64
+if [ "$ARCH" = "arm64" ]; then
+  FILE="kubectl-kuttl_${KUTTL_VERSION}_darwin_arm64"
+else
+  FILE="kubectl-kuttl_${KUTTL_VERSION}_darwin_x86_64"
+fi
+curl -sSL -o kubectl-kuttl "https://github.com/kudobuilder/kuttl/releases/download/v${KUTTL_VERSION}/${FILE}"
+chmod +x kubectl-kuttl
+sudo mv kubectl-kuttl /usr/local/bin/kubectl-kuttl
+
+# Linux (x86_64): download the linux binary
+# wget -q https://github.com/kudobuilder/kuttl/releases/download/v${KUTTL_VERSION}/kubectl-kuttl_${KUTTL_VERSION}_linux_x86_64
+# chmod +x kubectl-kuttl_${KUTTL_VERSION}_linux_x86_64
+# sudo mv kubectl-kuttl_${KUTTL_VERSION}_linux_x86_64 /usr/local/bin/kubectl-kuttl
 
 # Verify kuttl installation
 kubectl kuttl version  # or kuttl version
@@ -486,7 +497,7 @@ kubectl kuttl version  # or kuttl version
 curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 ```
 
-==== WE ARE HERE ON WINDOWS ====
+==== WE ARE HERE ON WINDOWS AND MAC ====
 
 ### 12. Create Test Directory Structure
 
