@@ -538,7 +538,7 @@ mkdir -p apis/v1alpha1/storage-accounts
 
 # Create Storage Account XRD
 cat <<'EOF' > apis/v1alpha1/storage-accounts/xrd.yaml
-apiVersion: apiextensions.crossplane.io/v1
+apiVersion: apiextensions.crossplane.io/v2
 kind: CompositeResourceDefinition
 metadata:
   name: xstorageaccounts.storage.example.io
@@ -547,7 +547,10 @@ spec:
   names:
     kind: XStorageAccount
     plural: xstorageaccounts
-  # Crossplane v2: namespaced XRs don't support claims.
+  # NOTE (Crossplane v2):
+  # - In Crossplane v2.x, XRDs use `apiVersion: apiextensions.crossplane.io/v2`.
+  # - This `apiVersion` is the CRD API version for the XRD type (not the XR's API version).
+  # - Crossplane v2 uses XRs (Composite Resources). Claims are not used in this guide.
   scope: Namespaced
   versions:
   - name: v1alpha1
@@ -946,7 +949,7 @@ spec:
     kind: GitRepository
     name: crossplane-configs
   healthChecks:
-  - apiVersion: apiextensions.crossplane.io/v1
+  - apiVersion: apiextensions.crossplane.io/v2
     kind: CompositeResourceDefinition
     name: xstorageaccounts.storage.example.io
 EOF
