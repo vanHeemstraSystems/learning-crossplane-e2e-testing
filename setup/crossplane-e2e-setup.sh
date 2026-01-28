@@ -546,8 +546,10 @@ kubectl get nodes
 echo ""
 echo "Crossplane Components:"
 kubectl get pods -n crossplane-system
-kubectl get providers
-kubectl get functions
+# NOTE: `kubectl get providers` can resolve to Flux "providers" (namespaced) if Flux is installed.
+# Use fully-qualified resource names for Crossplane.
+kubectl get providers.pkg.crossplane.io
+kubectl get functions.pkg.crossplane.io
 
 echo ""
 echo "ProviderConfig:"

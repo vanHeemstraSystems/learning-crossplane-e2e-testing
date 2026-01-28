@@ -360,7 +360,7 @@ kubectl get --raw='/healthz'
 # Only if the health check returns OK rerun previous command again.
 
 # Check provider status
-kubectl get providers
+kubectl get providers.pkg.crossplane.io
 
 # Note: If you previously used `provider-azure-postgresql`, it may show `INSTALLED=False`
 # due to an upstream package pull/unpack error. The correct Upbound provider is
@@ -977,8 +977,8 @@ kubectl get nodes
 # Check Crossplane
 echo "Checking Crossplane..."
 kubectl get pods -n crossplane-system
-kubectl get providers
-kubectl get functions
+kubectl get providers.pkg.crossplane.io
+kubectl get functions.pkg.crossplane.io
 
 # Check ProviderConfig
 echo "Checking ProviderConfig..."
