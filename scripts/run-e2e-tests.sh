@@ -8,7 +8,7 @@ kubectl config current-context
 
 # Run kuttl tests
 kubectl kuttl test \
-  tests/e2e \
+  --config tests/e2e/kuttl-test.yaml \
   --timeout 900 \
   --start-kind=false
 

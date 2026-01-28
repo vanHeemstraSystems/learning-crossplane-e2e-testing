@@ -482,10 +482,10 @@ mkdir -p tests/e2e/{storage-accounts,virtual-networks,postgresql-databases,integ
 mkdir -p scripts
 mkdir -p flux/clusters/dev/{crossplane,compositions,xrs}
 
-# Create subdirectories for tests
-
+# Create an initial test-case directory per suite.
+# KUTTL expects test cases to be subdirectories containing numbered step files (00-*.yaml, 01-*.yaml, ...).
 for dir in tests/e2e/*/; do
-mkdir -p "$dir"/{setup,verify,cleanup}
+mkdir -p "$dir"/basic
 done
 
 log_success "Directory structure created"
@@ -628,7 +628,7 @@ echo "Current context: $(kubectl config current-context)"
 
 # Run kuttl tests
 
-kubectl kuttl test tests/e2e/   
+kubectl kuttl test --config tests/e2e/kuttl-test.yaml
 -timeout 900   
 -start-kind=false
 

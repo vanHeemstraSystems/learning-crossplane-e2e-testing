@@ -503,9 +503,10 @@ curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 # Create E2E test directory structure
 mkdir -p tests/e2e/{storage-accounts,virtual-networks,postgresql-databases,integrations}
 
-# Create each test subdirectories
+# Create an initial test-case directory per suite.
+# KUTTL expects test *cases* to be subdirectories containing numbered step files (00-*.yaml, 01-*.yaml, ...).
 for dir in tests/e2e/*/; do
-  mkdir -p "$dir"/{setup,verify,cleanup}
+  mkdir -p "$dir"/basic
 done
 
 # Create test resource group for E2E tests
@@ -732,20 +733,28 @@ kubectl get composition
 ### 14. Create Example E2E Test
 
 ```bash
-# Create test configuration
-cat <<'EOF' > tests/e2e/storage-accounts/kuttl-test.yaml
+# Create test suite configuration (so you can run `kubectl kuttl test --config tests/e2e/kuttl-test.yaml`)
+cat <<'EOF' > tests/e2e/kuttl-test.yaml
 apiVersion: kuttl.dev/v1beta1
 kind: TestSuite
-metadata:
-  name: storage-account-e2e
 timeout: 600
 parallel: 1
 testDirs:
-- .
+  - ./tests/e2e/storage-accounts
+  - ./tests/e2e/virtual-networks
+  - ./tests/e2e/postgresql-databases
+  - ./tests/e2e/integrations
 EOF
 
+# Create a test case directory (KUTTL discovers test cases as subdirectories)
+mkdir -p tests/e2e/storage-accounts/basic
+
+# IMPORTANT:
+# KUTTL only executes files that start with a numeric step prefix (e.g. `00-...yaml`).
+# Files without the prefix are ignored by default.
+
 # Create test case - Setup
-cat <<'EOF' > tests/e2e/storage-accounts/setup/xr-storage.yaml
+cat <<'EOF' > tests/e2e/storage-accounts/basic/00-xr-storage.yaml
 apiVersion: storage.example.io/v1alpha1
 kind: XStorageAccount
 metadata:
@@ -764,7 +773,7 @@ spec:
 EOF
 
 # Create test case - Assert XR is created
-cat <<'EOF' > tests/e2e/storage-accounts/setup/assert.yaml
+cat <<'EOF' > tests/e2e/storage-accounts/basic/00-assert.yaml
 apiVersion: storage.example.io/v1alpha1
 kind: XStorageAccount
 metadata:
@@ -779,7 +788,7 @@ status:
 EOF
 
 # Create test case - Verify Managed Resources
-cat <<'EOF' > tests/e2e/storage-accounts/verify/assert-storage.yaml
+cat <<'EOF' > tests/e2e/storage-accounts/basic/01-assert-storage.yaml
 apiVersion: storage.azure.m.upbound.io/v1beta2
 kind: Account
 metadata:
@@ -796,7 +805,7 @@ status:
 EOF
 
 # Create test case - Verify with Azure CLI
-cat <<'EOF' > tests/e2e/storage-accounts/verify/verify-azure.yaml
+cat <<'EOF' > tests/e2e/storage-accounts/basic/01-verify-azure.yaml
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
 commands:
@@ -817,7 +826,7 @@ commands:
 EOF
 
 # Create test case - Cleanup
-cat <<'EOF' > tests/e2e/storage-accounts/cleanup/delete.yaml
+cat <<'EOF' > tests/e2e/storage-accounts/basic/02-delete.yaml
 apiVersion: storage.example.io/v1alpha1
 kind: XStorageAccount
 metadata:
@@ -827,7 +836,7 @@ $patch: delete
 EOF
 
 # Create test case - Assert cleanup completed
-cat <<'EOF' > tests/e2e/storage-accounts/cleanup/assert.yaml
+cat <<'EOF' > tests/e2e/storage-accounts/basic/02-assert.yaml
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
 commands:
@@ -856,7 +865,7 @@ kubectl config current-context
 
 # Run kuttl tests
 kubectl kuttl test \
-  tests/e2e \
+  --config tests/e2e/kuttl-test.yaml \
   --timeout 900 \
   --start-kind=false
 
@@ -1013,6 +1022,9 @@ chmod +x scripts/verify-setup.sh
 ```bash
 # Run the storage account test
 kubectl kuttl test tests/e2e/storage-accounts/
+
+# Or run all suites using the config file
+kubectl kuttl test --config tests/e2e/kuttl-test.yaml
 
 # Watch the test progress in another terminal
 watch kubectl get xstorageaccount,account,resourcegroup

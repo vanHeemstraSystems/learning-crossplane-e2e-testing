@@ -1,0 +1,10 @@
+apiVersion: kuttl.dev/v1beta1
+kind: TestSuite
+timeout: 600
+parallel: 1
+testDirs:
+  # Each directory below contains one or more KUTTL test cases (subdirectories).
+  - ./tests/e2e/storage-accounts
+  - ./tests/e2e/virtual-networks
+  - ./tests/e2e/postgresql-databases
+  - ./tests/e2e/integrations
