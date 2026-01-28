@@ -298,8 +298,6 @@ subscription_id = $SUBSCRIPTION_ID" \
 kubectl get secret azure-secret -n "$CROSSPLANE_NAMESPACE"
 ```
 
-==== WE ARE HERE ON MAC ====
-
 ### 8. Install Azure Providers
 
 Crossplane v2 uses modular providers. Install the ones you need:
@@ -354,8 +352,9 @@ minikube stop
 # Prevent auto-pause by setting a very large interval (some minikube versions reject `=0`):
 minikube start --auto-pause-interval=8760h
 # If you get an error like "can't create with that IP, address already in use" (Docker driver),
-# start Minikube on a different docker network/subnet:
-# minikube start --driver=docker --network=minikube-net --subnet=192.168.58.0/24 --auto-pause-interval=8760h
+# your chosen subnet likely overlaps with your LAN/VPN/Docker networks. Start Minikube on a
+# different docker network/subnet (pick one that is unused on your machine):
+# minikube start --driver=docker --network=minikube-net --subnet=172.30.0.0/16 --auto-pause-interval=8760h
 minikube update-context
 kubectl get --raw='/healthz'
 # Only if the health check returns OK rerun previous command again.
@@ -375,6 +374,8 @@ kubectl wait provider --all \
 # Verify provider pods are running
 kubectl get pods -n $CROSSPLANE_NAMESPACE
 ```
+
+==== WE ARE HERE ON MAC ====
 
 ### 9. Create ProviderConfig
 
