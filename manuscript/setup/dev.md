@@ -750,6 +750,11 @@ kubectl wait function --all --for=condition=Healthy --timeout=300s
 
 # Apply XRD and Composition
 kubectl apply -k apis/v1alpha1/storage-accounts
+#
+# If you see errors like:
+# "failed to download openapi ... TLS handshake timeout / context deadline exceeded"
+# your (mini)kube-apiserver is overloaded/flaky. Retry and/or skip client-side validation:
+# kubectl apply --validate=false -k apis/v1alpha1/storage-accounts
 
 # Verify
 kubectl get xrd
@@ -787,15 +792,16 @@ kind: XStorageAccount
 metadata:
   name: test-storage-e2e-001
 spec:
+  crossplane:
+    compositionSelector:
+      matchLabels:
+        provider: azure
+        type: standard
   parameters:
     location: westeurope
     accountTier: Standard
     replicationType: LRS
     resourceGroupName: crossplane-e2e-test-rg
-  compositionSelector:
-    matchLabels:
-      provider: azure
-      type: standard
 EOF
 
 # Create test case - Assert XR is created
