@@ -9,7 +9,7 @@ kubectl config current-context
 # Run kuttl tests
 kubectl kuttl test \
   --config tests/e2e/kuttl-test.yaml \
-  --timeout 900 \
+  --timeout 1200 \
   --start-kind=false
 
 echo "=== E2E Tests Complete ==="

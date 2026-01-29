@@ -1,11 +1,8 @@
-apiVersion: storage.example.io/v1alpha1
-kind: XStorageAccount
-metadata:
-  name: test-storage-e2e-001
-  namespace: default
-status:
-  conditions:
-  - type: Ready
-    status: "True"
-  - type: Synced
-    status: "True"
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 1200
+commands:
+- script: |
+    # Wait until the XR reconciles successfully.
+    kubectl wait xstorageaccount test-storage-e2e-001 --for=condition=Synced --timeout=1200s
+    kubectl wait xstorageaccount test-storage-e2e-001 --for=condition=Ready --timeout=1200s

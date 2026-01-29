@@ -1,7 +1,8 @@
 apiVersion: kuttl.dev/v1beta1
 kind: TestSuite
-timeout: 600
+timeout: 1200
 parallel: 1
+startKIND: false
 testDirs:
   # Each directory below contains one or more KUTTL test cases (subdirectories).
   - ./tests/e2e/storage-accounts

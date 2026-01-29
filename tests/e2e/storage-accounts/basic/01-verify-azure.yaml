@@ -4,7 +4,6 @@ commands:
 - script: |
     # Get the storage account name from the XR
     STORAGE_NAME=$(kubectl get xstorageaccount test-storage-e2e-001 \
-      -n default \
       -o jsonpath='{.status.storageAccountName}')
     
     # Verify the storage account exists in Azure

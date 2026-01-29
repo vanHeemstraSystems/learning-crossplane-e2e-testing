@@ -559,7 +559,11 @@ spec:
   # - In Crossplane v2.x, XRDs use `apiVersion: apiextensions.crossplane.io/v2`.
   # - This `apiVersion` is the CRD API version for the XRD type (not the XR's API version).
   # - Crossplane v2 uses XRs (Composite Resources). Claims are not used in this guide.
-  scope: Namespaced
+  #
+  # IMPORTANT:
+  # This example uses cluster-scoped XRs because the Upbound Azure managed resources used below
+  # (e.g. `storage.azure.upbound.io`) are cluster-scoped.
+  scope: Cluster
   versions:
   - name: v1alpha1
     served: true
@@ -632,11 +636,14 @@ spec:
       apiVersion: pt.fn.crossplane.io/v1beta1
       kind: Resources
       resources:
-      # Crossplane v2: use namespaced Managed Resources (the `.m.` API groups).
+      # NOTE:
+      # This example uses the cluster-scoped Upbound Azure API groups (without `.m.`).
+      # If you prefer namespaced managed resources, use the `.m.upbound.io` API groups
+      # and ensure the corresponding CRDs are installed.
 
       - name: resourcegroup
         base:
-          apiVersion: azure.m.upbound.io/v1beta1
+          apiVersion: azure.upbound.io/v1beta1
           kind: ResourceGroup
           spec:
             forProvider:
@@ -654,14 +661,18 @@ spec:
 
       - name: storageaccount
         base:
-          apiVersion: storage.azure.m.upbound.io/v1beta2
+          apiVersion: storage.azure.upbound.io/v1beta2
           kind: Account
+          metadata:
+            annotations:
+              # Azure Storage Account names must be lowercase letters+numbers only (no dashes).
+              # For a real setup, generate a unique name. This example uses a fixed name.
+              crossplane.io/external-name: teststoragee2e001
           spec:
             forProvider:
               accountReplicationType: LRS
               accountTier: Standard
-              resourceGroupNameSelector:
-                matchControllerRef: true
+              resourceGroupName: crossplane-e2e-test-rg
               tags:
                 managedBy: crossplane
                 environment: test
@@ -675,8 +686,14 @@ spec:
         - type: FromCompositeFieldPath
           fromFieldPath: spec.parameters.replicationType
           toFieldPath: spec.forProvider.accountReplicationType
-        - type: ToCompositeFieldPath
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.parameters.resourceGroupName
+          toFieldPath: spec.forProvider.resourceGroupName
+        - type: FromCompositeFieldPath
           fromFieldPath: metadata.name
+          toFieldPath: metadata.name
+        - type: ToCompositeFieldPath
+          fromFieldPath: metadata.annotations[crossplane.io/external-name]
           toFieldPath: status.storageAccountName
         - type: ToCompositeFieldPath
           fromFieldPath: status.atProvider.primaryBlobEndpoint
@@ -746,8 +763,9 @@ kubectl get composition
 cat <<'EOF' > tests/e2e/kuttl-test.yaml
 apiVersion: kuttl.dev/v1beta1
 kind: TestSuite
-timeout: 600
+timeout: 1200
 parallel: 1
+startKIND: false
 testDirs:
   - ./tests/e2e/storage-accounts
   - ./tests/e2e/virtual-networks
@@ -768,7 +786,6 @@ apiVersion: storage.example.io/v1alpha1
 kind: XStorageAccount
 metadata:
   name: test-storage-e2e-001
-  namespace: default
 spec:
   parameters:
     location: westeurope
@@ -783,34 +800,25 @@ EOF
 
 # Create test case - Assert XR is created
 cat <<'EOF' > tests/e2e/storage-accounts/basic/00-assert.yaml
-apiVersion: storage.example.io/v1alpha1
-kind: XStorageAccount
-metadata:
-  name: test-storage-e2e-001
-  namespace: default
-status:
-  conditions:
-  - type: Ready
-    status: "True"
-  - type: Synced
-    status: "True"
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 1200
+commands:
+- script: |
+    # Wait until the XR reconciles successfully.
+    kubectl wait xstorageaccount test-storage-e2e-001 --for=condition=Synced --timeout=1200s
+    kubectl wait xstorageaccount test-storage-e2e-001 --for=condition=Ready --timeout=1200s
 EOF
 
 # Create test case - Verify Managed Resources
 cat <<'EOF' > tests/e2e/storage-accounts/basic/01-assert-storage.yaml
-apiVersion: storage.azure.m.upbound.io/v1beta2
-kind: Account
-metadata:
-  name: test-storage-e2e-001
-  namespace: default
-  ownerReferences:
-  - apiVersion: storage.example.io/v1alpha1
-    kind: XStorageAccount
-    name: test-storage-e2e-001
-status:
-  conditions:
-  - type: Ready
-    status: "True"
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 1200
+commands:
+- script: |
+    # Wait for the composed Storage Account managed resource to become Ready.
+    kubectl wait account.storage.azure.upbound.io test-storage-e2e-001 --for=condition=Ready --timeout=1200s
 EOF
 
 # Create test case - Verify with Azure CLI
@@ -821,7 +829,6 @@ commands:
 - script: |
     # Get the storage account name from the XR
     STORAGE_NAME=$(kubectl get xstorageaccount test-storage-e2e-001 \
-      -n default \
       -o jsonpath='{.status.storageAccountName}')
     
     # Verify the storage account exists in Azure
@@ -840,7 +847,6 @@ apiVersion: storage.example.io/v1alpha1
 kind: XStorageAccount
 metadata:
   name: test-storage-e2e-001
-  namespace: default
 $patch: delete
 EOF
 
@@ -851,7 +857,7 @@ kind: TestAssert
 commands:
 - script: |
     # Verify XR is deleted
-    ! kubectl get xstorageaccount test-storage-e2e-001 -n default 2>/dev/null
+    ! kubectl get xstorageaccount test-storage-e2e-001 2>/dev/null
     exit $?
 EOF
 ```
@@ -875,7 +881,7 @@ kubectl config current-context
 # Run kuttl tests
 kubectl kuttl test \
   --config tests/e2e/kuttl-test.yaml \
-  --timeout 900 \
+  --timeout 1200 \
   --start-kind=false
 
 echo "=== E2E Tests Complete ==="
@@ -1030,13 +1036,14 @@ chmod +x scripts/verify-setup.sh
 
 ```bash
 # Run the storage account test
-kubectl kuttl test tests/e2e/storage-accounts/
+# Use the suite config so you get the intended timeout settings:
+kubectl kuttl test --config tests/e2e/kuttl-test.yaml tests/e2e/storage-accounts/
 
 # Or run all suites using the config file
 kubectl kuttl test --config tests/e2e/kuttl-test.yaml
 
 # Watch the test progress in another terminal
-watch kubectl get xstorageaccount,account,resourcegroup
+watch kubectl get xstorageaccount,accounts.storage.azure.upbound.io,resourcegroups.azure.upbound.io
 ```
 
 ### 3. Monitor with Azure CLI

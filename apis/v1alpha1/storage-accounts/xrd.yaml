@@ -11,7 +11,9 @@ spec:
   # - In Crossplane v2.x, XRDs use `apiVersion: apiextensions.crossplane.io/v2`.
   # - This `apiVersion` is the CRD API version for the XRD type (not the XR's API version).
   # - Crossplane v2 uses XRs (Composite Resources). Claims are not used in this guide.
-  scope: Namespaced
+  # This example uses cluster-scoped XRs because the Upbound Azure managed resources used below
+  # (e.g. `storage.azure.upbound.io`) are cluster-scoped.
+  scope: Cluster
   versions:
   - name: v1alpha1
     served: true

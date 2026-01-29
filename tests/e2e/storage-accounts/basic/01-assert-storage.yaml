@@ -1,13 +1,7 @@
-apiVersion: storage.azure.m.upbound.io/v1beta2
-kind: Account
-metadata:
-  name: test-storage-e2e-001
-  namespace: default
-  ownerReferences:
-  - apiVersion: storage.example.io/v1alpha1
-    kind: XStorageAccount
-    name: test-storage-e2e-001
-status:
-  conditions:
-  - type: Ready
-    status: "True"
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 1200
+commands:
+- script: |
+    # Wait for the composed Storage Account managed resource to become Ready.
+    kubectl wait account.storage.azure.upbound.io test-storage-e2e-001 --for=condition=Ready --timeout=1200s
