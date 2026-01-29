@@ -1036,7 +1036,7 @@ chmod +x scripts/verify-setup.sh
 ./scripts/verify-setup.sh
 ```
 
-==== WE ARE HERE ON MAC ====
+==== WE ARE HERE ON WINDOWS AND MAC ====
 
 ### 2. Run Your First E2E Test
 
@@ -1044,6 +1044,8 @@ chmod +x scripts/verify-setup.sh
 # Run the storage account test
 # Use the suite config so you get the intended timeout settings:
 kubectl kuttl test --config tests/e2e/kuttl-test.yaml tests/e2e/storage-accounts/
+
+# Note: on Windows use 'kuttl' instead of 'kubectl kuttl'.
 
 # Or run all suites using the config file
 kubectl kuttl test --config tests/e2e/kuttl-test.yaml
