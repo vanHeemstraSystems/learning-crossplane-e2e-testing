@@ -1078,13 +1078,26 @@ Install Crossview into your Minikube cluster (recommended upstream install metho
 brew install helm
 
 # Install Crossview (creates its own namespace + Postgres)
-helm install crossview oci://ghcr.io/corpobit/crossview-chart \
-  --version v1.6.0 \
+# Repo-based install is typically the most reliable:
+helm repo add crossview https://corpobit.github.io/crossview
+helm repo update
+
+helm install crossview crossview/crossview \
   --namespace crossview \
   --create-namespace \
   --set secrets.dbPassword=change-me \
   --set secrets.sessionSecret="$(openssl rand -base64 32)" \
-  --set service.type=NodePort
+  --set service.type=NodePort \
+  --version 3.4.0
+
+# If you prefer installing from the OCI chart instead, try:
+# helm install crossview oci://ghcr.io/corpobit/crossview-chart \
+#   --namespace crossview \
+#   --create-namespace \
+#   --set secrets.dbPassword=change-me \
+#   --set secrets.sessionSecret="$(openssl rand -base64 32)" \
+#   --set service.type=NodePort \
+#   --version 3.4.0
 
 # Wait until Crossview is ready
 kubectl wait -n crossview --for=condition=Available deploy/crossview --timeout=180s
