@@ -1063,6 +1063,52 @@ watch az resource list \
   --output table
 ```
 
+### 4. Visualize with Crossview (Optional)
+
+Crossview is a UI dashboard for Crossplane that can help you quickly see the relationships between:
+- **XRDs** (e.g. `xstorageaccounts.storage.example.io`)
+- **Compositions** (e.g. `xstorageaccounts.storage.example.io`)
+- **XRs** (e.g. `xstorageaccount test-storage-e2e-001`)
+- **Managed resources** (e.g. `resourcegroups.azure.upbound.io`, `accounts.storage.azure.upbound.io`)
+
+Install Crossview into your Minikube cluster (recommended upstream install method is Helm):
+
+```bash
+# Install Helm (macOS)
+brew install helm
+
+# Install Crossview (creates its own namespace + Postgres)
+helm install crossview oci://ghcr.io/corpobit/crossview-chart \
+  --version v1.6.0 \
+  --namespace crossview \
+  --create-namespace \
+  --set secrets.dbPassword=change-me \
+  --set secrets.sessionSecret="$(openssl rand -base64 32)" \
+  --set service.type=NodePort
+
+# Wait until Crossview is ready
+kubectl wait -n crossview --for=condition=Available deploy/crossview --timeout=180s
+
+# Open the UI (Minikube will launch a browser tab)
+minikube service -n crossview crossview-service
+```
+
+Once Crossview is open, look for these resources:
+
+```bash
+kubectl get xrd xstorageaccounts.storage.example.io
+kubectl get composition xstorageaccounts.storage.example.io
+kubectl get xstorageaccount test-storage-e2e-001
+kubectl get resourcegroups.azure.upbound.io,accounts.storage.azure.upbound.io -o wide
+```
+
+If `minikube service` is flaky on your machine, port-forward works everywhere:
+
+```bash
+kubectl port-forward -n crossview svc/crossview-service 3001:80
+# Then open: http://localhost:3001
+```
+
 ## Troubleshooting
 
 ### Common Issues
