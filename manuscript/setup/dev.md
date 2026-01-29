@@ -1090,6 +1090,10 @@ helm install crossview crossview/crossview \
   --set service.type=NodePort \
   --version 3.4.0
 
+# Optional (recommended if Postgres "latest" is flaky on Minikube): pin Postgres to a stable major version
+# by adding:
+#   --set database.image.tag=16
+
 # If you prefer installing from the OCI chart instead, try:
 # helm install crossview oci://ghcr.io/corpobit/crossview-chart \
 #   --namespace crossview \
@@ -1099,11 +1103,26 @@ helm install crossview crossview/crossview \
 #   --set service.type=NodePort \
 #   --version 3.4.0
 
-# Wait until Crossview is ready
-kubectl wait -n crossview --for=condition=Available deploy/crossview --timeout=180s
+# Wait until Crossview is ready (first install can take a few minutes on Minikube)
+kubectl wait -n crossview --for=condition=Available deploy/crossview-postgres --timeout=600s || true
+kubectl wait -n crossview --for=condition=Available deploy/crossview --timeout=600s
 
 # Open the UI (Minikube will launch a browser tab)
 minikube service -n crossview crossview-service
+```
+
+If the wait times out, quickly identify the blocker (image pull / PVC / DB not ready / crashloop):
+
+```bash
+kubectl get pods -n crossview -o wide
+kubectl get pvc -n crossview
+kubectl describe deploy/crossview -n crossview
+kubectl describe deploy/crossview-postgres -n crossview
+kubectl get events -n crossview --sort-by=.lastTimestamp | tail -n 30
+
+# Useful logs (pick the one that exists)
+kubectl logs -n crossview deploy/crossview --tail=200
+kubectl logs -n crossview deploy/crossview-postgres --tail=200
 ```
 
 Once Crossview is open, look for these resources:
@@ -1118,9 +1137,13 @@ kubectl get resourcegroups.azure.upbound.io,accounts.storage.azure.upbound.io -o
 If `minikube service` is flaky on your machine, port-forward works everywhere:
 
 ```bash
-kubectl port-forward -n crossview svc/crossview-service 3001:80
-# Then open: http://localhost:3001
+kubectl port-forward -n crossview deploy/crossview 3001:3001
 ```
+
+Now open `http://localhost:3001`.
+
+If you see `zsh: command not found: #`, it means your shell is treating `#` lines as commands.
+Just run the command lines (no `# ...` comment lines) and open the URL in your browser.
 
 ## Troubleshooting
 
