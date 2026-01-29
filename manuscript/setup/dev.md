@@ -916,8 +916,6 @@ EOF
 chmod +x scripts/*.sh
 ```
 
-==== WE ARE HERE ON MAC ====
-
 ### 16. Create Flux GitOps Structure
 
 ```bash
@@ -1025,6 +1023,8 @@ EOF
 chmod +x scripts/verify-setup.sh
 ./scripts/verify-setup.sh
 ```
+
+==== WE ARE HERE ON MAC ====
 
 ### 2. Run Your First E2E Test
 
