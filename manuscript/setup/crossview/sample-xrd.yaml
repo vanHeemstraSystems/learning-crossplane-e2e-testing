@@ -1,0 +1,130 @@
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: xstorageaccounts.azure.example.com
+spec:
+  group: azure.example.com
+  names:
+    kind: XStorageAccount
+    plural: xstorageaccounts
+  versions:
+  - name: v1alpha1
+    served: true
+    referenceable: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              id:
+                type: string
+                description: "Unique identifier for this storage account"
+              parameters:
+                type: object
+                properties:
+                  location:
+                    type: string
+                    description: "Azure region where storage account should be created"
+                    enum:
+                    - eastus
+                    - westus
+                    - westeurope
+                    - northeurope
+                    - uksouth
+                    - eastus2
+                  accountTier:
+                    type: string
+                    description: "Performance tier of the storage account"
+                    enum:
+                    - Standard
+                    - Premium
+                    default: Standard
+                  accountReplicationType:
+                    type: string
+                    description: "Replication type for the storage account"
+                    enum:
+                    - LRS
+                    - GRS
+                    - RAGRS
+                    - ZRS
+                    - GZRS
+                    - RAGZRS
+                    default: LRS
+                  accountKind:
+                    type: string
+                    description: "Kind of storage account"
+                    enum:
+                    - StorageV2
+                    - BlobStorage
+                    - BlockBlobStorage
+                    - FileStorage
+                    default: StorageV2
+                  enableHttpsTrafficOnly:
+                    type: boolean
+                    description: "Allow only HTTPS traffic"
+                    default: true
+                  minimumTlsVersion:
+                    type: string
+                    description: "Minimum TLS version"
+                    enum:
+                    - TLS1_0
+                    - TLS1_1
+                    - TLS1_2
+                    default: TLS1_2
+                  allowBlobPublicAccess:
+                    type: boolean
+                    description: "Allow public access to blobs"
+                    default: false
+                  networkRules:
+                    type: object
+                    description: "Network access rules"
+                    properties:
+                      defaultAction:
+                        type: string
+                        enum:
+                        - Allow
+                        - Deny
+                        default: Deny
+                      bypass:
+                        type: array
+                        items:
+                          type: string
+                          enum:
+                          - AzureServices
+                          - Logging
+                          - Metrics
+                  tags:
+                    type: object
+                    description: "Tags to apply to the storage account"
+                    additionalProperties:
+                      type: string
+                required:
+                - location
+            required:
+            - parameters
+          status:
+            type: object
+            properties:
+              storageAccountId:
+                type: string
+                description: "The ID of the created storage account"
+              storageAccountName:
+                type: string
+                description: "The name of the storage account"
+              primaryEndpoints:
+                type: object
+                description: "Primary endpoints for storage services"
+                properties:
+                  blob:
+                    type: string
+                  file:
+                    type: string
+                  queue:
+                    type: string
+                  table:
+                    type: string
+              provisioningState:
+                type: string
+                description: "The provisioning state of the storage account"

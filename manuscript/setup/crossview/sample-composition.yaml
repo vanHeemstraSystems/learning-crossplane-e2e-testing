@@ -1,0 +1,215 @@
+apiVersion: apiextensions.crossplane.io/v2
+kind: Composition
+metadata:
+  name: storageaccount-azure-standard
+  labels:
+    provider: azure
+    tier: standard
+    crossplane.io/xrd: xstorageaccounts.azure.example.com
+spec:
+  writeConnectionSecretsToNamespace: crossplane-system
+  compositeTypeRef:
+    apiVersion: azure.example.com/v1alpha1
+    kind: XStorageAccount
+  mode: Pipeline
+  pipeline:
+  - step: patch-and-transform
+    functionRef:
+      name: function-patch-and-transform
+    input:
+      apiVersion: pt.fn.crossplane.io/v1beta1
+      kind: Resources
+      resources:
+      - name: resourcegroup
+        base:
+          apiVersion: azure.upbound.io/v1beta1
+          kind: ResourceGroup
+          metadata:
+            name: # Will be generated
+          spec:
+            forProvider:
+              location: westeurope
+              tags:
+                managed-by: crossplane
+        patches:
+        # Patch location from composite
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.parameters.location
+          toFieldPath: spec.forProvider.location
+        
+        # Patch tags from composite
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.parameters.tags
+          toFieldPath: spec.forProvider.tags
+          policy:
+            mergeOptions:
+              keepMapValues: true
+        
+        # Set name from composite ID
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.id
+          toFieldPath: metadata.name
+          transforms:
+          - type: string
+            string:
+              fmt: "rg-%s"
+        
+        readinessChecks:
+        - type: None
+      
+      - name: storageaccount
+        base:
+          apiVersion: storage.azure.upbound.io/v1beta1
+          kind: Account
+          metadata:
+            name: # Will be generated
+          spec:
+            forProvider:
+              resourceGroupNameSelector:
+                matchControllerRef: true
+              location: westeurope
+              accountTier: Standard
+              accountReplicationType: LRS
+              accountKind: StorageV2
+              enableHttpsTrafficOnly: true
+              minTlsVersion: TLS1_2
+              allowBlobPublicAccess: false
+              networkRules:
+              - defaultAction: Deny
+                bypass:
+                - AzureServices
+              tags:
+                managed-by: crossplane
+        patches:
+        # Patch location from composite
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.parameters.location
+          toFieldPath: spec.forProvider.location
+        
+        # Patch account tier
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.parameters.accountTier
+          toFieldPath: spec.forProvider.accountTier
+        
+        # Patch replication type
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.parameters.accountReplicationType
+          toFieldPath: spec.forProvider.accountReplicationType
+        
+        # Patch account kind
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.parameters.accountKind
+          toFieldPath: spec.forProvider.accountKind
+        
+        # Patch HTTPS only setting
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.parameters.enableHttpsTrafficOnly
+          toFieldPath: spec.forProvider.enableHttpsTrafficOnly
+        
+        # Patch minimum TLS version
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.parameters.minimumTlsVersion
+          toFieldPath: spec.forProvider.minTlsVersion
+        
+        # Patch blob public access
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.parameters.allowBlobPublicAccess
+          toFieldPath: spec.forProvider.allowBlobPublicAccess
+        
+        # Patch network rules
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.parameters.networkRules.defaultAction
+          toFieldPath: spec.forProvider.networkRules[0].defaultAction
+        
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.parameters.networkRules.bypass
+          toFieldPath: spec.forProvider.networkRules[0].bypass
+        
+        # Patch tags from composite
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.parameters.tags
+          toFieldPath: spec.forProvider.tags
+          policy:
+            mergeOptions:
+              keepMapValues: true
+        
+        # Patch storage account ID back to status
+        - type: ToCompositeFieldPath
+          fromFieldPath: status.atProvider.id
+          toFieldPath: status.storageAccountId
+        
+        # Patch storage account name back to status
+        - type: ToCompositeFieldPath
+          fromFieldPath: metadata.name
+          toFieldPath: status.storageAccountName
+        
+        # Patch blob endpoint back to status
+        - type: ToCompositeFieldPath
+          fromFieldPath: status.atProvider.primaryBlobEndpoint
+          toFieldPath: status.primaryEndpoints.blob
+        
+        # Patch file endpoint back to status
+        - type: ToCompositeFieldPath
+          fromFieldPath: status.atProvider.primaryFileEndpoint
+          toFieldPath: status.primaryEndpoints.file
+        
+        # Patch queue endpoint back to status
+        - type: ToCompositeFieldPath
+          fromFieldPath: status.atProvider.primaryQueueEndpoint
+          toFieldPath: status.primaryEndpoints.queue
+        
+        # Patch table endpoint back to status
+        - type: ToCompositeFieldPath
+          fromFieldPath: status.atProvider.primaryTableEndpoint
+          toFieldPath: status.primaryEndpoints.table
+        
+        # Patch provisioning state back to status
+        - type: ToCompositeFieldPath
+          fromFieldPath: status.atProvider.provisioningState
+          toFieldPath: status.provisioningState
+        
+        # Generate unique storage account name (3-24 lowercase alphanumeric)
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.id
+          toFieldPath: metadata.name
+          transforms:
+          - type: string
+            string:
+              type: Format
+              fmt: "sa%s"
+          - type: string
+            string:
+              type: Regexp
+              regexp:
+                match: '[^a-z0-9]'
+                replace: ''
+          - type: string
+            string:
+              type: TrimSuffix
+              trim: '0123456789'
+        
+        readinessChecks:
+        - type: MatchString
+          fieldPath: status.atProvider.provisioningState
+          matchString: "Succeeded"
+      
+      - name: blobcontainer
+        base:
+          apiVersion: storage.azure.upbound.io/v1beta1
+          kind: Container
+          metadata:
+            name: # Will be generated
+          spec:
+            forProvider:
+              storageAccountNameSelector:
+                matchControllerRef: true
+              containerAccessType: private
+        patches:
+        # Set name from composite ID
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.id
+          toFieldPath: metadata.name
+          transforms:
+          - type: string
+            string:
+              fmt: "container-%s"

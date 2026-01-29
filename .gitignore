@@ -24,4 +24,3 @@
 # Ignore credentials
 .azure-credentials
 kubeconfig
-kubeconfig
