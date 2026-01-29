@@ -17,7 +17,9 @@ kubectl get functions.pkg.crossplane.io
 
 # Check ProviderConfig
 echo "Checking ProviderConfig..."
-kubectl get providerconfig
+# NOTE: `kubectl get providerconfig` may resolve to a namespaced resource depending on installed CRDs.
+# Use the fully-qualified resource name for the Upbound Azure ProviderConfig.
+kubectl get providerconfigs.azure.upbound.io
 
 # Check XRDs and Compositions
 echo "Checking XRDs..."

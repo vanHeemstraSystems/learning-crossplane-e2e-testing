@@ -358,6 +358,15 @@ minikube start --auto-pause-interval=8760h
 minikube update-context
 kubectl get --raw='/healthz'
 # Only if the health check returns OK rerun previous command again.
+#
+# Quickest recovery loop (when you see TLS handshake timeouts / API server flakiness):
+#
+# minikube stop
+# # If Docker feels sluggish, restart Docker Desktop here.
+# minikube start --auto-pause-interval=8760h
+# minikube update-context
+# kubectl get nodes
+# ./scripts/verify-setup.sh
 
 # Check provider status
 kubectl get providers.pkg.crossplane.io
@@ -394,7 +403,7 @@ spec:
 EOF
 
 # Verify ProviderConfig
-kubectl get providerconfig
+kubectl get providerconfigs.azure.upbound.io
 ```
 
 ### 10. Install Flux for GitOps
@@ -991,7 +1000,7 @@ kubectl get functions.pkg.crossplane.io
 
 # Check ProviderConfig
 echo "Checking ProviderConfig..."
-kubectl get providerconfig
+kubectl get providerconfigs.azure.upbound.io
 
 # Check XRDs and Compositions
 echo "Checking XRDs..."
