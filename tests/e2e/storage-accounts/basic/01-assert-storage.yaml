@@ -4,4 +4,6 @@ timeout: 1200
 commands:
 - script: |
     # Wait for the composed Storage Account managed resource to become Ready.
-    kubectl wait account.storage.azure.upbound.io test-storage-e2e-001 --for=condition=Ready --timeout=1200s
+    kubectl wait -n default account.storage.azure.m.upbound.io \
+      -l crossplane.io/composite=test-storage-e2e-001 \
+      --for=condition=Ready --timeout=1200s

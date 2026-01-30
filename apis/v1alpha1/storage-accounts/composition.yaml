@@ -20,13 +20,12 @@ spec:
       kind: Resources
       resources:
       # NOTE:
-      # This example uses the cluster-scoped Upbound Azure API groups (without `.m.`).
-      # If you prefer namespaced managed resources, use the `.m.upbound.io` API groups
-      # and ensure the corresponding CRDs are installed.
+      # This example uses the namespaced Upbound Azure API groups (with `.m.`),
+      # to match the XRD `scope: Namespaced`.
 
       - name: resourcegroup
         base:
-          apiVersion: azure.upbound.io/v1beta1
+          apiVersion: azure.m.upbound.io/v1beta1
           kind: ResourceGroup
           spec:
             forProvider:
@@ -44,17 +43,15 @@ spec:
 
       - name: storageaccount
         base:
-          apiVersion: storage.azure.upbound.io/v1beta2
+          apiVersion: storage.azure.m.upbound.io/v1beta1
           kind: Account
-          metadata:
-            annotations:
-              # Azure Storage Account names must be lowercase letters+numbers only (no dashes).
-              # For a real setup, generate a unique name. This example uses a fixed name.
-              crossplane.io/external-name: teststoragee2e001
           spec:
             forProvider:
               accountReplicationType: LRS
               accountTier: Standard
+              # Ensure we create a general-purpose v2 storage account.
+              # Some Azure APIs (e.g. FileServices) are not available for Blob-only account kinds.
+              accountKind: StorageV2
               resourceGroupName: crossplane-e2e-test-rg
               tags:
                 managedBy: crossplane
@@ -74,7 +71,28 @@ spec:
           toFieldPath: spec.forProvider.resourceGroupName
         - type: FromCompositeFieldPath
           fromFieldPath: metadata.name
+          # Set a stable, valid Kubernetes object name (also used as Azure name by default).
+          # Azure Storage Account names must be globally unique and must be lowercase letters+numbers only.
+          # Example: `test-storage-e2e-001` -> `teststoragee2e001`.
           toFieldPath: metadata.name
+          transforms:
+          - type: string
+            string:
+              type: Regexp
+              regexp:
+                match: '[^a-z0-9]'
+                replace: ''
+        - type: FromCompositeFieldPath
+          fromFieldPath: metadata.name
+          # Also set the Azure name explicitly via external-name annotation (nice for visibility).
+          toFieldPath: metadata.annotations[crossplane.io/external-name]
+          transforms:
+          - type: string
+            string:
+              type: Regexp
+              regexp:
+                match: '[^a-z0-9]'
+                replace: ''
         - type: ToCompositeFieldPath
           fromFieldPath: metadata.annotations[crossplane.io/external-name]
           toFieldPath: status.storageAccountName

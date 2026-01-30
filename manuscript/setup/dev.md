@@ -106,7 +106,8 @@ export NODE_SIZE="Standard_D2s_v3"        # On Windows set NODE_SIZE="Standard_D
 
 # Crossplane Configuration
 export CROSSPLANE_NAMESPACE="crossplane-system" # On Windows set CROSSPLANE_NAMESPACE="crossplane-system"
-export CROSSPLANE_VERSION="2.1.0"  # Crossplane v2.x (pin to the latest patch) # On Windows set CROSSPLANE_VERSION="2.1.0"
+# Crossplane v2.x (pin to the latest patch you want)
+export CROSSPLANE_VERSION="v2.1.0"  # On Windows set CROSSPLANE_VERSION="v2.1.0"
 
 # Testing Configuration
 export TEST_RESOURCE_GROUP="crossplane-e2e-test-rg"  # On Windows set TEST_RESOURCE_GROUP="crossplane-e2e-test-rg"
@@ -199,16 +200,22 @@ kubectl get nodes
 helm repo add crossplane-stable https://charts.crossplane.io/stable
 helm repo update
 
-# Install Crossplane *into your Kubernetes cluster* (server-side components)
-helm install crossplane \
+# Install / upgrade Crossplane *into your Kubernetes cluster* (server-side components).
+# Note: `--version` pins the *Helm chart version*, which does not match the Crossplane app version.
+# We pin the Crossplane app version via `--set image.tag=...`.
+helm upgrade --install crossplane \
   --namespace $CROSSPLANE_NAMESPACE \
   --create-namespace \
   crossplane-stable/crossplane \
-  --version $CROSSPLANE_VERSION \
+  --set image.tag=$CROSSPLANE_VERSION \
   --wait
 
 # Verify Crossplane installation
 kubectl get pods -n $CROSSPLANE_NAMESPACE
+
+# Verify the cluster supports the XRD v2 API (required for `apiVersion: apiextensions.crossplane.io/v2` XRDs)
+kubectl get crd compositeresourcedefinitions.apiextensions.crossplane.io \
+  -o jsonpath='{.spec.versions[*].name}'; echo
 
 # Expected output:
 # NAME                                      READY   STATUS    RESTARTS   AGE
@@ -254,6 +261,26 @@ export AZURE_CLIENT_ID=$(echo $SP_OUTPUT | jq -r '.appId')
 export AZURE_CLIENT_SECRET=$(echo $SP_OUTPUT | jq -r '.password')
 export AZURE_TENANT_ID=$(echo $SP_OUTPUT | jq -r '.tenant')
 
+# IMPORTANT:
+# `AZURE_CLIENT_SECRET` must be the *secret value* (the "password" returned by Azure CLI),
+# not a "secret ID". If you get Azure error `AADSTS7000215: Invalid client secret provided`,
+# regenerate a new secret value with the steps below.
+#
+# 1) Make sure your Azure CLI session is in the correct tenant (otherwise `az ad sp ...` may
+#    say "Resource ... does not exist"):
+#
+#   az login --tenant "$AZURE_TENANT_ID"
+#
+# 2) Confirm the Service Principal exists (by appId / clientId):
+#
+#   az ad sp show --id "$AZURE_CLIENT_ID" --query id -o tsv
+#
+# 3) Reset credentials and capture the new *secret value*:
+#
+#   az ad sp credential reset --id "$AZURE_CLIENT_ID" --append --query password -o tsv
+#
+# Then update `.azure-credentials` and recreate the Kubernetes `azure-secret` in Step 7.
+#
 # IMPORTANT: Save these credentials securely!
 echo "Azure Service Principal Credentials:"
 echo "Client ID: $AZURE_CLIENT_ID"
@@ -272,6 +299,12 @@ SUBSCRIPTION_ID=$SUBSCRIPTION_ID
 EOF
 
 chmod 600 .azure-credentials
+
+# Optional sanity check (recommended): verify the service principal can authenticate
+az login --service-principal \
+  -u "$AZURE_CLIENT_ID" \
+  -p "$AZURE_CLIENT_SECRET" \
+  --tenant "$AZURE_TENANT_ID" >/dev/null
 ```
 
 ### 7. Create Kubernetes Secret for Azure Credentials
@@ -285,13 +318,22 @@ set -a; source .azure-credentials; set +a
 
 ```bash
 # Create secret in Crossplane namespace
+# IMPORTANT (Upbound Azure providers):
+# The `creds` secret value must be **JSON** (not INI, not dotenv). If you use a non-JSON format
+# you will get errors like:
+#   "cannot unmarshal Azure credentials as JSON: invalid character ..."
+cat > azure-credentials.json <<EOF
+{
+  "clientId": "${AZURE_CLIENT_ID}",
+  "clientSecret": "${AZURE_CLIENT_SECRET}",
+  "tenantId": "${AZURE_TENANT_ID}",
+  "subscriptionId": "${SUBSCRIPTION_ID}"
+}
+EOF
+
 kubectl create secret generic azure-secret \
   --namespace "$CROSSPLANE_NAMESPACE" \
-  --from-literal=creds="[default]
-client_id = $AZURE_CLIENT_ID
-client_secret = $AZURE_CLIENT_SECRET
-tenant_id = $AZURE_TENANT_ID
-subscription_id = $SUBSCRIPTION_ID" \
+  --from-file=creds=./azure-credentials.json \
   --dry-run=client -o yaml | kubectl apply -f -
 
 # Verify secret creation
@@ -300,45 +342,20 @@ kubectl get secret azure-secret -n "$CROSSPLANE_NAMESPACE"
 
 ### 8. Install Azure Providers
 
-Crossplane v2 uses modular providers. Install the ones you need:
+For **namespaced** managed resources (the `.m.upbound.io` API groups used by this guide),
+install the Upbound **Azure provider family** (it contains the Azure service providers and includes
+the namespaced CRDs).
 
 ```bash
 # Create provider installation manifest
 cat <<EOF | kubectl apply -f -
----
 apiVersion: pkg.crossplane.io/v1
 kind: Provider
 metadata:
-  name: provider-azure-storage
+  name: provider-family-azure
 spec:
-  package: xpkg.upbound.io/upbound/provider-azure-storage:v1.3.0
-  packagePullPolicy: IfNotPresent
----
-apiVersion: pkg.crossplane.io/v1
-kind: Provider
-metadata:
-  name: provider-azure-network
-spec:
-  package: xpkg.upbound.io/upbound/provider-azure-network:v1.3.0
-  packagePullPolicy: IfNotPresent
----
-apiVersion: pkg.crossplane.io/v1
-kind: Provider
-metadata:
-  name: provider-azure-dbforpostgresql
-spec:
-  # Azure Database for PostgreSQL (Flexible Server, etc.)
-  # Note: Use a version that exists in the Upbound registry / marketplace.
-  # At the time of writing, v2.3.0 is part of provider-family-azure v2.3.0.
-  package: xpkg.upbound.io/upbound/provider-azure-dbforpostgresql:v2.3.0
-  packagePullPolicy: IfNotPresent
----
-apiVersion: pkg.crossplane.io/v1
-kind: Provider
-metadata:
-  name: provider-azure-compute
-spec:
-  package: xpkg.upbound.io/upbound/provider-azure-compute:v1.3.0
+  # See: https://marketplace.upbound.io/providers/upbound/provider-family-azure/latest
+  package: xpkg.upbound.io/upbound/provider-family-azure:v2.3.0
   packagePullPolicy: IfNotPresent
 EOF
 
@@ -349,12 +366,46 @@ sleep 60
 # If the above command times out before it completes, your Minikube API server may be
 # paused/stopped. Restart Minikube and (optionally) disable auto-pause:
 minikube stop
+# If you want to start from scratch
+minikube delete --profile minikube || true
+docker rm -f minikube 2>/dev/null || true
+
+# Use a unique Docker network name to avoid clashes with Docker Desktop extensions
+# (some extensions may create and hold onto common names like `minikube-net`).
+#
+# No manual edits needed: we generate a unique name per run, and pick a non-overlapping private subnet.
+# If Docker says "Pool overlaps", it means some other Docker network already uses that subnet.
+MINIKUBE_DOCKER_NET="minikube-net-$(date +%Y%m%d%H%M%S)-$RANDOM"
+echo "Using MINIKUBE_DOCKER_NET=$MINIKUBE_DOCKER_NET"
+
+for MINIKUBE_DOCKER_SUBNET in \
+  172.30.0.0/16 172.29.0.0/16 172.28.0.0/16 172.27.0.0/16 172.26.0.0/16 \
+  172.25.0.0/16 172.24.0.0/16 172.23.0.0/16 172.22.0.0/16 172.21.0.0/16 172.20.0.0/16
+do
+  if docker network create --subnet="$MINIKUBE_DOCKER_SUBNET" "$MINIKUBE_DOCKER_NET" >/dev/null 2>&1; then
+    echo "Using MINIKUBE_DOCKER_SUBNET=$MINIKUBE_DOCKER_SUBNET"
+    break
+  fi
+done
+
+if ! docker network inspect "$MINIKUBE_DOCKER_NET" >/dev/null 2>&1; then
+  echo "ERROR: could not create a non-overlapping docker network for minikube." >&2
+  echo "Tip: list existing subnets with: docker network inspect <network> --format '{{json .IPAM.Config}}'" >&2
+  exit 1
+fi
 # Prevent auto-pause by setting a very large interval (some minikube versions reject `=0`):
-minikube start --auto-pause-interval=8760h
+# NOTE (macOS + docker driver): Docker Desktop must be running, otherwise you'll see:
+#   "PROVIDER_DOCKER_NOT_RUNNING ... Cannot connect to the Docker daemon ..."
+# minikube start --auto-pause-interval=8760h
 # If you get an error like "can't create with that IP, address already in use" (Docker driver),
 # your chosen subnet likely overlaps with your LAN/VPN/Docker networks. Start Minikube on a
 # different docker network/subnet (pick one that is unused on your machine):
-# minikube start --driver=docker --network=minikube-net --subnet=172.30.0.0/16 --auto-pause-interval=8760h
+minikube start \
+  --driver=docker \
+  --network="$MINIKUBE_DOCKER_NET" \
+  --subnet="$MINIKUBE_DOCKER_SUBNET" \
+  --container-runtime=containerd \
+  --auto-pause-interval=8760h
 minikube update-context
 kubectl get --raw='/healthz'
 # Only if the health check returns OK rerun previous command again.
@@ -371,9 +422,9 @@ kubectl get --raw='/healthz'
 # Check provider status
 kubectl get providers.pkg.crossplane.io
 
-# Note: If you previously used `provider-azure-postgresql`, it may show `INSTALLED=False`
-# due to an upstream package pull/unpack error. The correct Upbound provider is
-# `provider-azure-dbforpostgresql` (configured above).
+# If you previously installed older Upbound Azure providers (e.g. `provider-azure-storage`),
+# they may conflict with the namespaced `.m.` APIs used in this guide.
+# Prefer using the single `provider-family-azure` package above.
 
 # Wait for all providers to be healthy
 kubectl wait provider --all \
@@ -503,7 +554,30 @@ sudo mv kubectl-kuttl /usr/local/bin/kubectl-kuttl
 kubectl kuttl version  # or kuttl version
 
 # Install Azure CLI (if not already installed)
-curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+#
+# macOS (recommended if Homebrew `azure-cli` is slow): pipx
+brew install pipx
+pipx ensurepath
+# IMPORTANT: `pipx` installs shims into `~/.local/bin`. You typically need to restart your shell
+# (or source the right rc file) so `~/.local/bin` is on your PATH.
+# - zsh:  source ~/.zshrc  (or open a new terminal)
+# - bash: source ~/.bashrc (or open a new terminal)
+#
+# Quick sanity checks:
+#   ls -la ~/.local/bin/az
+#   echo "$PATH" | tr ':' '\n' | grep -n '\.local/bin' || true
+#
+# Then:
+pipx install azure-cli
+az version
+#
+# macOS fallback (Homebrew):
+# brew update
+# brew install azure-cli
+# az version
+#
+# Linux (Debian/Ubuntu):
+# curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 ```
 
 ### 12. Create Test Directory Structure
@@ -556,14 +630,11 @@ spec:
     kind: XStorageAccount
     plural: xstorageaccounts
   # NOTE (Crossplane v2):
-  # - In Crossplane v2.x, XRDs use `apiVersion: apiextensions.crossplane.io/v2`.
-  # - This `apiVersion` is the CRD API version for the XRD type (not the XR's API version).
-  # - Crossplane v2 uses XRs (Composite Resources). Claims are not used in this guide.
+  # - The XRD v2 API adds `scope` (defaults to Namespaced). We set it explicitly.
+  # - We use XRs (Composite Resources) directly in this guide (no Claims).
   #
-  # IMPORTANT:
-  # This example uses cluster-scoped XRs because the Upbound Azure managed resources used below
-  # (e.g. `storage.azure.upbound.io`) are cluster-scoped.
-  scope: Cluster
+  # This example uses namespaced XRs and namespaced managed resources (`.m.upbound.io` API groups).
+  scope: Namespaced
   versions:
   - name: v1alpha1
     served: true
@@ -575,6 +646,16 @@ spec:
           spec:
             type: object
             properties:
+              crossplane:
+                type: object
+                properties:
+                  compositionSelector:
+                    type: object
+                    properties:
+                      matchLabels:
+                        type: object
+                        additionalProperties:
+                          type: string
               parameters:
                 type: object
                 properties:
@@ -603,6 +684,7 @@ spec:
                 required:
                 - resourceGroupName
             required:
+            - crossplane
             - parameters
           status:
             type: object
@@ -637,13 +719,12 @@ spec:
       kind: Resources
       resources:
       # NOTE:
-      # This example uses the cluster-scoped Upbound Azure API groups (without `.m.`).
-      # If you prefer namespaced managed resources, use the `.m.upbound.io` API groups
-      # and ensure the corresponding CRDs are installed.
+      # This example uses the namespaced Upbound Azure API groups (with `.m.`).
+      # Ensure your installed Upbound Azure provider(s) include these CRDs.
 
       - name: resourcegroup
         base:
-          apiVersion: azure.upbound.io/v1beta1
+          apiVersion: azure.m.upbound.io/v1beta1
           kind: ResourceGroup
           spec:
             forProvider:
@@ -661,17 +742,13 @@ spec:
 
       - name: storageaccount
         base:
-          apiVersion: storage.azure.upbound.io/v1beta2
+          apiVersion: storage.azure.m.upbound.io/v1beta1
           kind: Account
-          metadata:
-            annotations:
-              # Azure Storage Account names must be lowercase letters+numbers only (no dashes).
-              # For a real setup, generate a unique name. This example uses a fixed name.
-              crossplane.io/external-name: teststoragee2e001
           spec:
             forProvider:
               accountReplicationType: LRS
               accountTier: Standard
+              accountKind: StorageV2
               resourceGroupName: crossplane-e2e-test-rg
               tags:
                 managedBy: crossplane
@@ -689,9 +766,27 @@ spec:
         - type: FromCompositeFieldPath
           fromFieldPath: spec.parameters.resourceGroupName
           toFieldPath: spec.forProvider.resourceGroupName
+        # Use a valid Azure storage account name derived from the XR name
         - type: FromCompositeFieldPath
           fromFieldPath: metadata.name
           toFieldPath: metadata.name
+          transforms:
+          - type: string
+            string:
+              type: Regexp
+              regexp:
+                match: '[^a-z0-9]'
+                replace: ''
+        - type: FromCompositeFieldPath
+          fromFieldPath: metadata.name
+          toFieldPath: metadata.annotations[crossplane.io/external-name]
+          transforms:
+          - type: string
+            string:
+              type: Regexp
+              regexp:
+                match: '[^a-z0-9]'
+                replace: ''
         - type: ToCompositeFieldPath
           fromFieldPath: metadata.annotations[crossplane.io/external-name]
           toFieldPath: status.storageAccountName
@@ -812,8 +907,8 @@ timeout: 1200
 commands:
 - script: |
     # Wait until the XR reconciles successfully.
-    kubectl wait xstorageaccount test-storage-e2e-001 --for=condition=Synced --timeout=1200s
-    kubectl wait xstorageaccount test-storage-e2e-001 --for=condition=Ready --timeout=1200s
+    kubectl wait -n default xstorageaccount test-storage-e2e-001 --for=condition=Synced --timeout=1200s
+    kubectl wait -n default xstorageaccount test-storage-e2e-001 --for=condition=Ready --timeout=1200s
 EOF
 
 # Create test case - Verify Managed Resources
@@ -824,7 +919,9 @@ timeout: 1200
 commands:
 - script: |
     # Wait for the composed Storage Account managed resource to become Ready.
-    kubectl wait account.storage.azure.upbound.io test-storage-e2e-001 --for=condition=Ready --timeout=1200s
+    kubectl wait -n default account.storage.azure.m.upbound.io \
+      -l crossplane.io/composite=test-storage-e2e-001 \
+      --for=condition=Ready --timeout=1200s
 EOF
 
 # Create test case - Verify with Azure CLI
@@ -834,7 +931,7 @@ kind: TestAssert
 commands:
 - script: |
     # Get the storage account name from the XR
-    STORAGE_NAME=$(kubectl get xstorageaccount test-storage-e2e-001 \
+    STORAGE_NAME=$(kubectl get -n default xstorageaccount test-storage-e2e-001 \
       -o jsonpath='{.status.storageAccountName}')
     
     # Verify the storage account exists in Azure
@@ -863,7 +960,7 @@ kind: TestAssert
 commands:
 - script: |
     # Verify XR is deleted
-    ! kubectl get xstorageaccount test-storage-e2e-001 2>/dev/null
+    ! kubectl get -n default xstorageaccount test-storage-e2e-001 2>/dev/null
     exit $?
 EOF
 ```
@@ -980,7 +1077,7 @@ spec:
     kind: GitRepository
     name: crossplane-configs
   healthChecks:
-  - apiVersion: apiextensions.crossplane.io/v2
+  - apiVersion: apiextensions.crossplane.io/v1
     kind: CompositeResourceDefinition
     name: xstorageaccounts.storage.example.io
 EOF
@@ -1051,7 +1148,7 @@ kubectl kuttl test --config tests/e2e/kuttl-test.yaml tests/e2e/storage-accounts
 kubectl kuttl test --config tests/e2e/kuttl-test.yaml
 
 # Watch the test progress in another terminal
-watch kubectl get xstorageaccount,accounts.storage.azure.upbound.io,resourcegroups.azure.upbound.io
+watch kubectl get -n default xstorageaccount,accounts.storage.azure.m.upbound.io,resourcegroups.azure.m.upbound.io
 ```
 
 ### 3. Monitor with Azure CLI
@@ -1069,7 +1166,13 @@ Crossview is a UI dashboard for Crossplane that can help you quickly see the rel
 - **XRDs** (e.g. `xstorageaccounts.storage.example.io`)
 - **Compositions** (e.g. `xstorageaccounts.storage.example.io`)
 - **XRs** (e.g. `xstorageaccount test-storage-e2e-001`)
-- **Managed resources** (e.g. `resourcegroups.azure.upbound.io`, `accounts.storage.azure.upbound.io`)
+- **Managed resources** (e.g. `resourcegroups.azure.m.upbound.io`, `accounts.storage.azure.m.upbound.io`)
+
+This section uses the **same storage-account example** used throughout this guide:
+- **XRD/Composition source**: `apis/v1alpha1/storage-accounts/`
+- **XRD name**: `xstorageaccounts.storage.example.io`
+- **Composition name**: `xstorageaccounts.storage.example.io`
+- **Example XR**: `xstorageaccount test-storage-e2e-001` (from `tests/e2e/storage-accounts/basic/`)
 
 Install Crossview into your Minikube cluster (recommended upstream install method is Helm):
 
@@ -1111,6 +1214,28 @@ kubectl wait -n crossview --for=condition=Available deploy/crossview --timeout=6
 minikube service -n crossview crossview-service
 ```
 
+Optional: validate your XRD ↔ Composition matching via CLI before using the UI:
+
+```bash
+chmod +x manuscript/setup/crossview/*.sh
+
+# List all Compositions that match this XRD (apiVersion + kind)
+./manuscript/setup/crossview/validate-xrd-composition.sh xstorageaccounts.storage.example.io
+
+# Or validate a specific Composition explicitly
+./manuscript/setup/crossview/validate-xrd-composition.sh \
+  xstorageaccounts.storage.example.io \
+  xstorageaccounts.storage.example.io
+```
+
+If you see either of these errors:
+- `permission denied`: rerun `chmod +x manuscript/setup/crossview/*.sh`
+- `env: bash\r: No such file or directory`: your scripts have Windows (CRLF) line endings. Convert them:
+
+```bash
+perl -pi -e 's/\r$//' manuscript/setup/crossview/*.sh
+```
+
 If the wait times out, quickly identify the blocker (image pull / PVC / DB not ready / crashloop):
 
 ```bash
@@ -1131,7 +1256,7 @@ Once Crossview is open, look for these resources:
 kubectl get xrd xstorageaccounts.storage.example.io
 kubectl get composition xstorageaccounts.storage.example.io
 kubectl get xstorageaccount test-storage-e2e-001
-kubectl get resourcegroups.azure.upbound.io,accounts.storage.azure.upbound.io -o wide
+kubectl get -n default resourcegroups.azure.m.upbound.io,accounts.storage.azure.m.upbound.io -o wide
 ```
 
 If `minikube service` is flaky on your machine, port-forward works everywhere:
@@ -1153,7 +1278,7 @@ Just run the command lines (no `# ...` comment lines) and open the URL in your b
 
 ```bash
 # Check provider logs
-kubectl logs -n crossplane-system -l pkg.crossplane.io/provider=provider-azure-storage
+kubectl logs -n crossplane-system -l pkg.crossplane.io/provider --tail=200
 
 # Check provider config
 kubectl describe providerconfig default
@@ -1171,6 +1296,65 @@ kubectl get managed
 # Check Crossplane logs
 kubectl logs -n crossplane-system deployment/crossplane -f
 ```
+
+**3. Storage Account name conflicts (Azure)**
+
+Azure Storage Account names are **globally unique** and must be **lowercase letters + numbers only**.
+This guide derives the Azure storage account name from the XR name:
+`test-storage-e2e-001` → `teststoragee2e001`.
+
+If your `Account` managed resource stays `READY=False` with an Azure error indicating the name is already taken,
+delete the XR and re-create it with a different name (which produces a different Azure storage account name):
+
+```bash
+kubectl delete xstorageaccount test-storage-e2e-001
+
+cat <<'EOF' | kubectl apply -f -
+apiVersion: storage.example.io/v1alpha1
+kind: XStorageAccount
+metadata:
+  name: test-storage-e2e-002
+spec:
+  crossplane:
+    compositionSelector:
+      matchLabels:
+        provider: azure
+        type: standard
+  parameters:
+    location: westeurope
+    accountTier: Standard
+    replicationType: LRS
+    resourceGroupName: crossplane-e2e-test-rg
+EOF
+```
+
+**4. Azure subscription not registered for Microsoft.Storage**
+
+If the `Account` managed resource shows an error like:
+`MissingSubscriptionRegistration ... The subscription is not registered to use namespace 'Microsoft.Storage'`,
+you need to register the Azure Resource Provider in your subscription (one-time per subscription):
+
+```bash
+# Make sure you're logged into the correct tenant/subscription
+set -a; source .azure-credentials; set +a
+az login --tenant "$AZURE_TENANT_ID"
+az account set --subscription "$SUBSCRIPTION_ID"
+
+# Register Azure Storage Resource Provider
+az provider register --namespace Microsoft.Storage
+
+# Wait until it's registered
+az provider show --namespace Microsoft.Storage --query "registrationState" -o tsv
+```
+
+Wait until the state is `Registered`, then re-check:
+
+```bash
+kubectl get -n default account.storage.azure.m.upbound.io -l crossplane.io/composite=test-storage-e2e-001
+kubectl get -n default xstorageaccount test-storage-e2e-001
+```
+
+Crossplane will retry reconciliation automatically once the provider is registered.
 
 **3. Azure authentication issues**
 

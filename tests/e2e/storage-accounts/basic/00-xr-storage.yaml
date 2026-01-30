@@ -2,6 +2,7 @@ apiVersion: storage.example.io/v1alpha1
 kind: XStorageAccount
 metadata:
   name: test-storage-e2e-001
+  namespace: default
 spec:
   crossplane:
     compositionSelector:

@@ -3,5 +3,5 @@ kind: TestAssert
 commands:
 - script: |
     # Verify XR is deleted
-    ! kubectl get xstorageaccount test-storage-e2e-001 2>/dev/null
+    ! kubectl get -n default xstorageaccount test-storage-e2e-001 2>/dev/null
     exit $?

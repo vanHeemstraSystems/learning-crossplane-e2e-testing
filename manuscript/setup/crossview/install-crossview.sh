@@ -1,187 +1,74 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-# Crossview Installation Script for Minikube
+# Install Crossview into the current Kubernetes cluster using Helm.
+#
+# This script exists to provide a "one command" install for local dev (Minikube).
+# It aligns with the Helm-based instructions in manuscript/setup/dev.md.
 
-# This script installs Crossview for visualizing Crossplane resources
+set -euo pipefail
 
-set -e
+RED=$'\033[0;31m'
+GREEN=$'\033[0;32m'
+YELLOW=$'\033[1;33m'
+NC=$'\033[0m'
 
-echo “=== Crossview Installation for Crossplane Validation ===”
-echo “”
+die() {
+  echo "${RED}ERROR:${NC} $*" >&2
+  exit 1
+}
 
-# Colors for output
+need() {
+  command -v "$1" >/dev/null 2>&1 || die "Missing dependency: $1"
+}
 
-RED=’\033[0;31m’
-GREEN=’\033[0;32m’
-YELLOW=’\033[1;33m’
-NC=’\033[0m’ # No Color
+need kubectl
+need helm
 
-# Check if kubectl is available
-
-if ! command -v kubectl &> /dev/null; then
-echo -e “${RED}Error: kubectl is not installed${NC}”
-exit 1
+if ! kubectl cluster-info >/dev/null 2>&1; then
+  die "Cannot connect to Kubernetes cluster (kubectl cluster-info failed). Is minikube running?"
 fi
 
-# Check if minikube is running
+CHART_VERSION="${CROSSVIEW_CHART_VERSION:-3.4.0}"
+NAMESPACE="${CROSSVIEW_NAMESPACE:-crossview}"
+DB_PASSWORD="${CROSSVIEW_DB_PASSWORD:-change-me}"
+SESSION_SECRET="${CROSSVIEW_SESSION_SECRET:-}"
 
-if ! kubectl cluster-info &> /dev/null; then
-echo -e “${RED}Error: Cannot connect to Kubernetes cluster. Is minikube running?${NC}”
-exit 1
+if [[ -z "$SESSION_SECRET" ]]; then
+  if command -v openssl >/dev/null 2>&1; then
+    SESSION_SECRET="$(openssl rand -base64 32)"
+  else
+    die "openssl not found; set CROSSVIEW_SESSION_SECRET to a random value"
+  fi
 fi
 
-echo -e “${GREEN}✓ Kubernetes cluster is accessible${NC}”
-
-# Check if Crossplane is installed
-
-if ! kubectl get namespace crossplane-system &> /dev/null; then
-echo -e “${YELLOW}Warning: crossplane-system namespace not found${NC}”
-echo “Please ensure Crossplane is installed before proceeding”
-read -p “Continue anyway? (y/n) “ -n 1 -r
+echo "=== Crossview installation ==="
 echo
-if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-exit 1
-fi
-fi
-
-echo “”
-echo “Step 1: Creating crossview namespace…”
-kubectl create namespace crossview –dry-run=client -o yaml | kubectl apply -f -
-
-## echo “”
-echo “Step 2: Creating ServiceAccount and RBAC permissions…”
-cat <<EOF | kubectl apply -f -
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-name: crossview
-namespace: crossview
-
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-name: crossview-reader
-rules:
-
-- apiGroups: [”*”]
-  resources: [”*”]
-  verbs: [“get”, “list”, “watch”]
-
------
-
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-name: crossview-reader-binding
-roleRef:
-apiGroup: rbac.authorization.k8s.io
-kind: ClusterRole
-name: crossview-reader
-subjects:
-
-- kind: ServiceAccount
-  name: crossview
-  namespace: crossview
-  EOF
-
-## echo “”
-echo “Step 3: Deploying Crossview application…”
-cat <<EOF | kubectl apply -f -
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-name: crossview
-namespace: crossview
-labels:
-app: crossview
-spec:
-replicas: 1
-selector:
-matchLabels:
-app: crossview
-template:
-metadata:
-labels:
-app: crossview
-spec:
-serviceAccountName: crossview
-containers:
-- name: crossview
-image: smoeidheidari/crossview:latest
-ports:
-- containerPort: 3000
-name: http
-env:
-- name: PORT
-value: “3000”
-resources:
-requests:
-memory: “256Mi”
-cpu: “100m”
-limits:
-memory: “512Mi”
-cpu: “500m”
-livenessProbe:
-httpGet:
-path: /
-port: 3000
-initialDelaySeconds: 30
-periodSeconds: 10
-readinessProbe:
-httpGet:
-path: /
-port: 3000
-initialDelaySeconds: 5
-periodSeconds: 5
-
-apiVersion: v1
-kind: Service
-metadata:
-name: crossview
-namespace: crossview
-spec:
-type: NodePort
-selector:
-app: crossview
-ports:
-
-- port: 3000
-  targetPort: 3000
-  nodePort: 30080
-  protocol: TCP
-  name: http
-  EOF
-
-echo “”
-echo “Step 4: Waiting for Crossview pod to be ready…”
-kubectl wait –for=condition=ready pod -l app=crossview -n crossview –timeout=120s
-
-echo “”
-echo -e “${GREEN}✓ Crossview installed successfully!${NC}”
-echo “”
-echo “=== Access Crossview ===”
-echo “”
-echo “Option 1: Using minikube service (recommended):”
-echo -e “  ${YELLOW}minikube service crossview -n crossview${NC}”
-echo “”
-echo “Option 2: Using port-forward:”
-echo -e “  ${YELLOW}kubectl port-forward -n crossview svc/crossview 8080:3000${NC}”
-echo “  Then open: http://localhost:8080”
-echo “”
-echo “Option 3: Using NodePort (if minikube IP is accessible):”
-MINIKUBE_IP=$(minikube ip 2>/dev/null || echo “MINIKUBE_IP”)
-echo “  http://${MINIKUBE_IP}:30080”
-echo “”
-
-# Offer to open Crossview automatically
-
-read -p “Would you like to open Crossview now? (y/n) “ -n 1 -r
+echo "Namespace:    ${NAMESPACE}"
+echo "Chart ver:    ${CHART_VERSION}"
 echo
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-echo “Opening Crossview…”
-minikube service crossview -n crossview
-fi
 
-echo “”
-echo -e “${GREEN}Installation complete!${NC}”
-echo “Check the crossview-setup-guide.md for usage instructions.”
+helm repo add crossview https://corpobit.github.io/crossview >/dev/null
+helm repo update >/dev/null
+
+helm upgrade --install crossview crossview/crossview \
+  --namespace "${NAMESPACE}" \
+  --create-namespace \
+  --version "${CHART_VERSION}" \
+  --set secrets.dbPassword="${DB_PASSWORD}" \
+  --set secrets.sessionSecret="${SESSION_SECRET}" \
+  --set service.type=NodePort
+
+echo
+echo "Waiting for deployments..."
+kubectl wait -n "${NAMESPACE}" --for=condition=Available deploy/crossview-postgres --timeout=600s || true
+kubectl wait -n "${NAMESPACE}" --for=condition=Available deploy/crossview --timeout=600s
+
+echo
+echo "${GREEN}✓ Crossview installed${NC}"
+echo
+echo "Access options:"
+echo "  - Minikube tunnel URL (keep the terminal open):"
+echo "      minikube service -n ${NAMESPACE} crossview-service"
+echo "  - Port-forward (works everywhere):"
+echo "      kubectl port-forward -n ${NAMESPACE} deploy/crossview 3001:3001"
+echo "      open http://localhost:3001"
