@@ -520,6 +520,74 @@ flux check
 kubectl get pods -n flux-system
 ```
 
+#### Optional: Flux Notifications (Slack example)
+
+If you want alerts on reconciliation failures, you can configure Flux notifications. The example below uses Slack, but the pattern is the same for other notification providers.
+
+```bash
+mkdir -p flux/notifications
+
+cat <<'EOF' > flux/notifications/slack-alerts.yaml
+apiVersion: notification.toolkit.fluxcd.io/v1beta3
+kind: Provider
+metadata:
+  name: slack
+  namespace: flux-system
+spec:
+  type: slack
+  channel: crossplane-alerts
+  # Replace with your Slack Incoming Webhook URL
+  address: https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK
+---
+apiVersion: notification.toolkit.fluxcd.io/v1beta3
+kind: Alert
+metadata:
+  name: crossplane-flux-alerts
+  namespace: flux-system
+spec:
+  providerRef:
+    name: slack
+  eventSeverity: error
+  eventSources:
+    - kind: Kustomization
+      name: crossplane-apis
+    - kind: GitRepository
+      name: crossplane-configs
+EOF
+
+kubectl apply -f flux/notifications/slack-alerts.yaml
+```
+
+#### Optional: CI validation for Flux manifests
+
+You can validate Flux manifests in CI to catch obvious YAML/schema issues before merge.
+
+```yaml
+# .github/workflows/validate-flux.yml
+name: Validate Flux Manifests
+on: [pull_request]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Flux CLI
+        run: |
+          curl -s https://fluxcd.io/install.sh | sudo bash
+
+      - name: Validate Flux install manifest (client-side)
+        run: |
+          flux install --export > /tmp/flux-install.yaml
+          kubectl apply --dry-run=client -f /tmp/flux-install.yaml
+
+      - name: Validate repository Flux resources (client-side)
+        run: |
+          # Adjust paths if your Flux manifests live elsewhere.
+          kubectl apply --dry-run=client -f flux/clusters/dev/ || true
+```
+
 ### 11. Install E2E Testing Tools
 
 ```bash
@@ -615,6 +683,70 @@ az version
 #
 # Linux (Debian/Ubuntu):
 # curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+```
+
+#### Provider Validation Tests (Uptest) (Optional)
+
+Uptest can validate individual managed resources against Azure with lifecycle semantics (create → ready → delete) and cloud-friendly defaults.
+
+Create a minimal provider validation structure:
+
+```bash
+mkdir -p tests/provider/examples/azure
+
+cat > tests/provider/setup.sh <<'EOF'
+#!/bin/bash
+set -euo pipefail
+
+echo "Waiting for Crossplane to be ready..."
+kubectl wait --for=condition=available deployment/crossplane \
+  -n crossplane-system --timeout=300s
+
+echo "Waiting for Azure provider family to be healthy..."
+kubectl wait --for=condition=healthy provider.pkg.crossplane.io/provider-family-azure \
+  --timeout=900s
+
+echo "Verifying Azure credentials secret exists..."
+kubectl get secret azure-secret -n crossplane-system >/dev/null
+
+# Give webhooks extra time to stabilize (helps on resource-constrained clusters)
+sleep 15
+
+echo "Provider validation setup complete!"
+EOF
+
+chmod +x tests/provider/setup.sh
+```
+
+Create a simple ResourceGroup example:
+
+```bash
+cat > tests/provider/examples/azure/resourcegroup.yaml <<'EOF'
+apiVersion: azure.m.upbound.io/v1beta1
+kind: ResourceGroup
+metadata:
+  name: uptest-rg
+  annotations:
+    uptest.upbound.io/timeout: "900"
+spec:
+  forProvider:
+    location: westeurope
+    tags:
+      purpose: e2e-testing
+  providerConfigRef:
+    name: default
+EOF
+```
+
+Run provider validation:
+
+```bash
+cd tests/provider
+
+uptest run examples/azure/*.yaml \
+  --setup-script=setup.sh \
+  --default-timeout=900 \
+  --skip-delete=false
 ```
 
 ### 12. Create Test Directory Structure
@@ -1013,6 +1145,71 @@ crossplane render \
 ls -la rendered-output.yaml
 ```
 
+#### Validate all APIs (recommended as pre-commit / CI check)
+
+If you maintain multiple APIs under `apis/v1alpha1/*`, you can render every API that has `xrd.yaml`, `composition.yaml`, and at least one example under `examples/`.
+
+```bash
+cat > scripts/render-all.sh <<'EOF'
+#!/bin/bash
+set -euo pipefail
+
+for api_dir in apis/v1alpha1/*/; do
+  api_name=$(basename "$api_dir")
+  echo "=== Rendering ${api_name} ==="
+
+  if [ -f "${api_dir}/xrd.yaml" ] && [ -f "${api_dir}/composition.yaml" ]; then
+    if [ -d "${api_dir}/examples" ] && ls "${api_dir}/examples"/*.yaml >/dev/null 2>&1; then
+      for example in "${api_dir}/examples/"*.yaml; do
+        echo "  - $(basename "${example}")"
+        crossplane render \
+          "${api_dir}/xrd.yaml" \
+          "${api_dir}/composition.yaml" \
+          "${example}" \
+          --include-function-results > /dev/null
+      done
+      echo "  ✅ ${api_name} renders successfully"
+    else
+      echo "  ⚠️  ${api_name}: no examples found under ${api_dir}/examples/*.yaml (skipping)"
+    fi
+  else
+    echo "  ⚠️  ${api_name}: missing xrd.yaml or composition.yaml (skipping)"
+  fi
+done
+
+echo "✅ All renderable APIs passed"
+EOF
+
+chmod +x scripts/render-all.sh
+./scripts/render-all.sh
+```
+
+#### CI/CD integration (example)
+
+Add a lightweight workflow that renders every API on each push/PR:
+
+```yaml
+# .github/workflows/validate-compositions.yml
+name: Validate Compositions (crossplane render)
+on: [push, pull_request]
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Crossplane CLI
+        run: |
+          curl -sL "https://raw.githubusercontent.com/crossplane/crossplane/master/install.sh" | sh
+          sudo mv crossplane /usr/local/bin/
+
+      - name: Render all APIs
+        run: |
+          chmod +x scripts/render-all.sh
+          ./scripts/render-all.sh
+```
+
 ### 14. Create Example E2E Test
 
 ```bash
@@ -1278,6 +1475,129 @@ spec:
 EOF
 ```
 
+## Testing Strategy (6 Layers)
+
+This project uses a **layered testing strategy** so we can validate Crossplane changes with the right balance of **speed, cost, and fidelity**.
+
+### Test Layers (0–5)
+
+0. **Local composition rendering** (`crossplane render`)
+   - Validate XRD + Composition + example XR locally
+   - Instant feedback, no cluster, no Azure
+1. **Cluster health + provider validation** (`kubectl`, optional `uptest`)
+   - Validate Crossplane stability, webhooks, providers/functions health
+   - Optionally validate individual managed resources with Uptest
+2. **Composition and XR inspection** (Crossview)
+   - Visualize XRDs/Compositions, verify composition selection, inspect XR→MR graphs
+3. **In-cluster E2E tests** (KUTTL)
+   - Validate reconciliation behavior and lifecycle in Kubernetes
+4. **Cloud-side verification** (Azure CLI)
+   - Confirm Azure resources exist and match intent (names, region, configuration)
+5. **GitOps deployment & monitoring** (Flux + Headlamp)
+   - Continuous reconciliation from Git, drift detection, operational visibility
+
+### Testing Pyramid (cost vs fidelity)
+
+```
+             Layer 5: GitOps (Flux + Headlamp)
+           (Continuous reconciliation & operations)
+         ⏱️  Continuous | 🔺 Platform-wide
+        /                                   \
+   Layer 4: Cloud Verification (Azure CLI)
+    (Azure control-plane reality checks)
+   ⏱️  Minutes | 🔺 Few checks
+  /                                   \
+Layer 3: In-cluster E2E (KUTTL)
+ (XR lifecycle + composed managed resources)
+⏱️  20–40 min | 🔺 Some tests
+ \                                   /
+  Layer 2: Visual Inspection (Crossview)
+   (XRD/Composition matching, XR→MR graph)
+   ⏱️  Fast | 🔺 Many debugging actions
+    \                                   /
+     Layer 1: Cluster Health + Providers
+      (webhooks, providers, functions, creds)
+      ⏱️  Fast | 🔺 Many checks
+        \                               /
+         Layer 0: Local Render
+          (XRD + Composition + example)
+          ⏱️  < 1 sec | 🔺 Most checks
+
+Legend:
+🔺 = relative number of checks (wider = more)
+⏱️  = feedback speed (bottom = fastest)
+```
+
+### Development Workflow (recommended)
+
+```
+┌────────────────────────────────────────────────────────────┐
+│ 1. Write/Modify Composition                                 │
+│    apis/v1alpha1/postgresql-databases/composition.yaml      │
+└──────────────────┬─────────────────────────────────────────┘
+                   │
+                   ▼
+┌────────────────────────────────────────────────────────────┐
+│ 2. Render Locally (Layer 0)                                 │
+│    crossplane render xrd.yaml composition.yaml example.yaml │
+│    ✅ Instant feedback, no cluster needed                    │
+└──────────────────┬─────────────────────────────────────────┘
+                   │ If valid
+                   ▼
+┌────────────────────────────────────────────────────────────┐
+│ 3. Apply to a cluster / or commit to Git                    │
+│    - Local dev: kubectl apply -k apis/v1alpha1/...          │
+│    - GitOps: commit/push and let Flux reconcile (Layer 5)   │
+└──────────────────┬─────────────────────────────────────────┘
+                   │
+                   ▼
+┌────────────────────────────────────────────────────────────┐
+│ 4. Validate cluster health (Layer 1)                        │
+│    scripts/check-crossplane-health.sh                       │
+└──────────────────┬─────────────────────────────────────────┘
+                   │ If healthy
+                   ▼
+┌────────────────────────────────────────────────────────────┐
+│ 5. Debug/inspect (Layer 2)                                  │
+│    Crossview: XRDs, Compositions, XRs, managed resources    │
+└──────────────────┬─────────────────────────────────────────┘
+                   │
+                   ▼
+┌────────────────────────────────────────────────────────────┐
+│ 6. Run E2E tests (Layer 3)                                  │
+│    kubectl kuttl test ...                                   │
+└──────────────────┬─────────────────────────────────────────┘
+                   │
+                   ▼
+┌────────────────────────────────────────────────────────────┐
+│ 7. Verify in Azure (Layer 4)                                │
+│    az postgres flexible-server show / db show               │
+└────────────────────────────────────────────────────────────┘
+```
+
+### Cost vs Speed Trade-off (guidance)
+
+```
+Layer | Speed        | Azure cost risk | Cluster | Azure | Crossview/Headlamp | Use case
+------|--------------|-----------------|---------|-------|--------------------|---------------------------
+  0   | Instant      | None            | No      | No    | No                 | Dev iteration
+  1   | Fast         | Low             | Yes     | Maybe | Optional           | Stability + provider readiness
+  2   | Fast         | Low             | Yes     | Maybe | Yes                | Debugging and understanding graphs
+  3   | Medium/Slow  | Medium          | Yes     | Yes   | Yes                | Single API / suite validation
+  4   | Fast/Medium  | Medium          | Yes     | Yes   | Optional           | Cloud-side assertions
+  5   | Continuous   | Varies          | Yes     | Yes   | Yes                | GitOps delivery, drift, operations
+```
+
+### Running Tests (by layer)
+
+To avoid duplication, the concrete “how-to” commands live in the relevant sections below:
+
+- **Layer 0 (render)**: see `### 13.1 Local Composition Rendering` (and `scripts/render-all.sh` + CI example)
+- **Layer 1 (cluster health)**: see `## Verification Steps` → `### 0. Pre-Test Health Validation`
+- **Layer 3 (E2E)**: see `## Verification Steps` → `### 2. Run Your First E2E Test`
+- **Layer 4 (Azure verification)**: see `## Verification Steps` → `### 3. Monitor with Azure CLI`
+- **Layer 5 (GitOps)**: see `### 10. Install Flux for GitOps`, `### 16. Create Flux GitOps Structure`, and `### 5. Monitor GitOps with Headlamp + Flux Plugin`
+
 ## Verification Steps
 
 ### 0. Pre-Test Health Validation (Recommended)
@@ -1412,6 +1732,11 @@ This section uses the **same PostgreSQL example** used throughout this guide:
 - **Composition name**: `xpostgresqldatabases.database.example.io`
 - **Example XR**: `xpostgresqldatabase default/test-postgres-e2e-001` (from `tests/e2e/postgresql-databases/basic/`)
 
+Why Crossview:
+- **Visual resource relationships**: XR → composed managed resources
+- **Health and conditions**: Ready/Synced status and error messages in one place
+- **Composition inspection**: quickly confirm selection and expected resource graph
+
 Install Crossview into your Minikube cluster (recommended upstream install method is Helm):
 
 ```bash
@@ -1508,6 +1833,51 @@ Now open `http://localhost:3001`.
 If you see `zsh: command not found: #`, it means your shell is treating `#` lines as commands.
 Just run the command lines (no `# ...` comment lines) and open the URL in your browser.
 
+#### Using Crossview by test layer (high level)
+
+- **Layer 1 (cluster + provider validation)**:
+  - Providers: verify `provider-family-azure` is Healthy and has stable pods
+  - ProviderConfig: confirm the `default` ProviderConfig references the expected secret
+- **Layer 2 (XRD/Composition inspection)**:
+  - XRDs: inspect schema and parameters for `xpostgresqldatabases.database.example.io`
+  - Compositions: confirm label/selector matching and pipeline steps
+- **Layer 3–4 (XR lifecycle and cloud verification support)**:
+  - Composite Resources: open `xpostgresqldatabase` instances and follow the resource graph to the underlying managed resources
+
+#### Crossview vs kubectl (when to use which)
+
+```
+Task                          | kubectl                                  | Crossview
+------------------------------|------------------------------------------|------------------------
+Check provider health         | kubectl get providers / providerrevisions| Visual dashboard
+View XR relationships         | multiple kubectl get/describe commands   | Interactive graph
+Debug composition selection   | inspect labels/selectors manually         | Composition/XR views
+Find error conditions         | kubectl get -o yaml + describe            | Conditions panel
+Understand dependencies       | manual inspection                          | Automatic visualization
+```
+
+#### Alternative: Komoplane (optional)
+
+If you prefer a lighter-weight troubleshooting UI:
+
+```bash
+helm repo add komodorio https://helm-charts.komodor.io
+helm repo update
+helm install komoplane komodorio/komoplane
+
+kubectl port-forward -n default svc/komoplane 8090:8090
+open http://localhost:8090
+```
+
+Komoplane is simpler, while Crossview is more Crossplane-focused (XR→MR graphs, compositions).
+
+#### Crossview Best Practices
+
+1. Install in dev/staging first, then production.
+2. Prefer port-forward (or private ingress) and add auth if exposing publicly.
+3. Back up Crossview’s PostgreSQL data if you rely on it operationally.
+4. Monitor resource usage (Crossview + Postgres need capacity).
+
 ### 5. Monitor GitOps with Headlamp + Flux Plugin (Optional)
 
 Headlamp is a modern Kubernetes dashboard. With the Flux plugin enabled, it becomes a handy UI for day-to-day GitOps troubleshooting (Kustomizations, HelmReleases, Sources, reconciliation status).
@@ -1580,6 +1950,19 @@ open http://localhost:4466
 ```
 
 In the Headlamp sidebar, open the **Flux** section to inspect Sources/Kustomizations/HelmReleases and see reconciliation status and events.
+
+#### Rollback workflow (GitOps)
+
+If a platform change breaks reconciliation, roll back by reverting the Git commit. Flux will converge the cluster back to the previous desired state.
+
+#### Flux Best Practices (pragmatic)
+
+1. Separate environments by path (one path per cluster).
+2. Use `dependsOn` (providers → functions → apis → instances).
+3. Add `healthChecks` for critical XRDs and key XRs.
+4. Consider notifications on reconciliation failures (Slack, etc.).
+
+For operational commands, see `## Troubleshooting` → **Flux not syncing**.
 
 ## Troubleshooting
 
@@ -1689,7 +2072,7 @@ flux get all
 
 # Force reconciliation
 flux reconcile source git crossplane-configs
-flux reconcile kustomization crossplane-xrds
+flux reconcile kustomization crossplane-apis --with-source
 
 # Check Flux logs
 kubectl logs -n flux-system deployment/source-controller
