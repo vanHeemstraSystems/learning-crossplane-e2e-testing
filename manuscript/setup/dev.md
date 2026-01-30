@@ -223,6 +223,31 @@ kubectl get crd compositeresourcedefinitions.apiextensions.crossplane.io \
 # crossplane-rbac-manager-xxx               1/1     Running   0          1m
 ```
 
+### 4.1 Verify Webhook Stability (Recommended)
+
+Crossplane v2 uses webhooks extensively. If you see intermittent `TLS handshake timeout` / `context deadline exceeded` errors while applying providers / functions / compositions, patching webhook timeouts often helps:
+
+```bash
+# Wait for Crossplane to be fully ready
+kubectl wait --for=condition=available deployment/crossplane \
+  -n "$CROSSPLANE_NAMESPACE" --timeout=300s
+
+# Patch validating webhook timeout
+kubectl patch validatingwebhookconfigurations \
+  crossplane-validating-webhook-configuration \
+  --type='json' \
+  -p='[{"op": "replace", "path": "/webhooks/0/timeoutSeconds", "value": 30}]'
+
+# Patch mutating webhook timeout
+kubectl patch mutatingwebhookconfigurations \
+  crossplane-mutating-webhook-configuration \
+  --type='json' \
+  -p='[{"op": "replace", "path": "/webhooks/0/timeoutSeconds", "value": 30}]'
+
+# Give webhooks time to stabilize
+sleep 15
+```
+
 ### 5. Install Crossplane CLI (client)
 
 ```bash
@@ -550,6 +575,20 @@ sudo mv kubectl-kuttl /usr/local/bin/kubectl-kuttl
 
 # Verify kuttl installation
 kubectl kuttl version  # or kuttl version
+
+# Optional (recommended): install Uptest (Crossplane provider / managed resource test harness)
+#
+# Uptest is designed for the Crossplane ecosystem and can complement (or replace) some KUTTL flows,
+# especially when you want lifecycle-style tests (create → ready → delete) with sensible timeouts.
+#
+# Any OS (Go toolchain required):
+go install github.com/crossplane/uptest@latest
+#
+# macOS (Homebrew, if available in your setup):
+# brew install uptest
+#
+# Verify:
+uptest --version
 
 # Install Azure CLI (if not already installed)
 #
@@ -931,6 +970,49 @@ kubectl get xrd
 kubectl get composition
 ```
 
+### 13.1 Local Composition Rendering (Optional, fastest feedback loop)
+
+The Crossplane CLI `render` command validates your XRD + Composition locally and shows you the managed resources that would be created. This is a great way to catch patch/transform mistakes without waiting on a cluster reconciliation cycle.
+
+```bash
+# Create a local example XR (used only for rendering)
+mkdir -p apis/v1alpha1/postgresql-databases/examples
+cat <<'EOF' > apis/v1alpha1/postgresql-databases/examples/basic.yaml
+apiVersion: database.example.io/v1alpha1
+kind: XPostgreSQLDatabase
+metadata:
+  name: render-postgres-example
+  namespace: default
+spec:
+  crossplane:
+    compositionSelector:
+      matchLabels:
+        provider: azure
+        type: standard
+  parameters:
+    location: westeurope
+    resourceGroupName: crossplane-e2e-test-rg
+    databaseName: appdb
+    adminUsername: pgadmin
+    adminPasswordSecretName: postgres-admin-password
+    adminPasswordSecretKey: password
+    postgresVersion: "16"
+    skuName: B_Standard_B1ms
+    storageMb: 32768
+EOF
+
+# Render what would be created (no cluster required)
+crossplane render \
+  apis/v1alpha1/postgresql-databases/xrd.yaml \
+  apis/v1alpha1/postgresql-databases/composition.yaml \
+  apis/v1alpha1/postgresql-databases/examples/basic.yaml \
+  --include-function-results \
+  > rendered-output.yaml
+
+# Inspect output
+ls -la rendered-output.yaml
+```
+
 ### 14. Create Example E2E Test
 
 ```bash
@@ -1198,6 +1280,49 @@ EOF
 
 ## Verification Steps
 
+### 0. Pre-Test Health Validation (Recommended)
+
+Before running any tests (KUTTL/Uptest), it helps to confirm the entire Crossplane stack is stable:
+
+```bash
+cat <<'EOF' > scripts/check-crossplane-health.sh
+#!/bin/bash
+set -euo pipefail
+
+CP_NS="${CROSSPLANE_NAMESPACE:-crossplane-system}"
+
+echo "=== Checking Crossplane Core (namespace: ${CP_NS}) ==="
+kubectl get deployment -n "${CP_NS}"
+kubectl get pods -n "${CP_NS}"
+
+echo -e "\n=== Checking Providers ==="
+kubectl get providers.pkg.crossplane.io || true
+kubectl get providerrevisions.pkg.crossplane.io || true
+
+echo -e "\n=== Checking Functions ==="
+kubectl get functions.pkg.crossplane.io || true
+
+echo -e "\n=== Checking Webhook Configurations ==="
+kubectl get validatingwebhookconfigurations | grep crossplane || true
+kubectl get mutatingwebhookconfigurations | grep crossplane || true
+
+echo -e "\n=== Checking Provider Health (Upbound Azure family) ==="
+kubectl wait --for=condition=healthy provider.pkg.crossplane.io/provider-family-azure \
+  --timeout=600s || true
+
+echo -e "\n=== Checking Function Health ==="
+kubectl wait --for=condition=healthy function.pkg.crossplane.io/function-patch-and-transform \
+  --timeout=600s || true
+kubectl wait --for=condition=healthy function.pkg.crossplane.io/function-auto-ready \
+  --timeout=600s || true
+
+echo -e "\n✅ Crossplane health check complete!"
+EOF
+
+chmod +x scripts/check-crossplane-health.sh
+./scripts/check-crossplane-health.sh
+```
+
 ### 1. Verify Complete Installation
 
 ```bash
@@ -1382,6 +1507,79 @@ Now open `http://localhost:3001`.
 
 If you see `zsh: command not found: #`, it means your shell is treating `#` lines as commands.
 Just run the command lines (no `# ...` comment lines) and open the URL in your browser.
+
+### 5. Monitor GitOps with Headlamp + Flux Plugin (Optional)
+
+Headlamp is a modern Kubernetes dashboard. With the Flux plugin enabled, it becomes a handy UI for day-to-day GitOps troubleshooting (Kustomizations, HelmReleases, Sources, reconciliation status).
+
+Prerequisites:
+- Flux installed in the cluster (Step 10)
+
+#### Install Headlamp (managed by Flux controllers)
+
+This installs Headlamp via `HelmRepository` + `HelmRelease` resources (reconciled by Flux):
+
+```bash
+cat <<'EOF' | kubectl apply -f -
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: headlamp
+  namespace: flux-system
+spec:
+  interval: 1h
+  url: https://headlamp-k8s.github.io/headlamp/
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: headlamp
+  namespace: headlamp
+spec:
+  interval: 10m
+  chart:
+    spec:
+      chart: headlamp
+      sourceRef:
+        kind: HelmRepository
+        name: headlamp
+        namespace: flux-system
+  install:
+    createNamespace: true
+  values:
+    # Plugin support: install the Flux plugin via an initContainer.
+    # Pin the image tag if you want repeatable installs.
+    initContainers:
+      - name: flux-plugin
+        image: ghcr.io/headlamp-k8s/headlamp-plugin-flux:latest
+        command: ["/bin/sh", "-c"]
+        args:
+          - "mkdir -p /headlamp/plugins && cp -r /plugins/* /headlamp/plugins/"
+        volumeMounts:
+          - mountPath: /headlamp/plugins
+            name: headlamp-plugins
+    volumes:
+      - name: headlamp-plugins
+        emptyDir: {}
+    volumeMounts:
+      - mountPath: /headlamp/plugins
+        name: headlamp-plugins
+EOF
+
+# Wait for it to roll out
+kubectl rollout status -n headlamp deploy/headlamp --timeout=600s
+```
+
+#### Access Headlamp
+
+```bash
+kubectl port-forward -n headlamp svc/headlamp 4466:80
+
+# Open browser
+open http://localhost:4466
+```
+
+In the Headlamp sidebar, open the **Flux** section to inspect Sources/Kustomizations/HelmReleases and see reconciliation status and events.
 
 ## Troubleshooting
 
