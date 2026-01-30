@@ -1,0 +1,21 @@
+apiVersion: database.example.io/v1alpha1
+kind: XPostgreSQLDatabase
+metadata:
+  name: test-postgres-e2e-001
+  namespace: default
+spec:
+  crossplane:
+    compositionSelector:
+      matchLabels:
+        provider: azure
+        type: standard
+  parameters:
+    location: westeurope
+    resourceGroupName: crossplane-e2e-test-rg
+    databaseName: appdb
+    adminUsername: pgadmin
+    adminPasswordSecretName: postgres-admin-password
+    adminPasswordSecretKey: password
+    postgresVersion: "16"
+    skuName: B_Standard_B1ms
+    storageMb: 32768

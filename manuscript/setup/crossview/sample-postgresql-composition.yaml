@@ -1,0 +1,179 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: xpostgresqldatabases.database.example.io
+  labels:
+    provider: azure
+    type: standard
+spec:
+  compositeTypeRef:
+    apiVersion: database.example.io/v1alpha1
+    kind: XPostgreSQLDatabase
+
+  mode: Pipeline
+  pipeline:
+  - step: patch-and-transform
+    functionRef:
+      name: function-patch-and-transform
+    input:
+      apiVersion: pt.fn.crossplane.io/v1beta1
+      kind: Resources
+      resources:
+      - name: resourcegroup
+        base:
+          apiVersion: azure.m.upbound.io/v1beta1
+          kind: ResourceGroup
+          spec:
+            forProvider:
+              location: westeurope
+            providerConfigRef:
+              kind: ProviderConfig
+              name: default
+        patches:
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.parameters.location
+          toFieldPath: spec.forProvider.location
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.parameters.resourceGroupName
+          toFieldPath: metadata.name
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.parameters.resourceGroupName
+          toFieldPath: metadata.annotations[crossplane.io/external-name]
+
+      - name: flexibleserver
+        base:
+          apiVersion: dbforpostgresql.azure.m.upbound.io/v1beta1
+          kind: FlexibleServer
+          metadata:
+            annotations: {}
+          spec:
+            forProvider:
+              location: westeurope
+              skuName: B_Standard_B1ms
+              version: "16"
+              storageMb: 32768
+              backupRetentionDays: 7
+              autoGrowEnabled: true
+              publicNetworkAccessEnabled: true
+              administratorLogin: pgadmin
+              administratorPasswordSecretRef:
+                name: postgres-admin-password
+                key: password
+              resourceGroupNameRef:
+                name: example
+            providerConfigRef:
+              kind: ProviderConfig
+              name: default
+            writeConnectionSecretToRef:
+              name: postgres-conn
+        patches:
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.parameters.location
+          toFieldPath: spec.forProvider.location
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.parameters.skuName
+          toFieldPath: spec.forProvider.skuName
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.parameters.postgresVersion
+          toFieldPath: spec.forProvider.version
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.parameters.storageMb
+          toFieldPath: spec.forProvider.storageMb
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.parameters.adminUsername
+          toFieldPath: spec.forProvider.administratorLogin
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.parameters.adminPasswordSecretName
+          toFieldPath: spec.forProvider.administratorPasswordSecretRef.name
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.parameters.adminPasswordSecretKey
+          toFieldPath: spec.forProvider.administratorPasswordSecretRef.key
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.parameters.resourceGroupName
+          toFieldPath: spec.forProvider.resourceGroupNameRef.name
+        - type: FromCompositeFieldPath
+          fromFieldPath: metadata.namespace
+          toFieldPath: spec.forProvider.resourceGroupNameRef.namespace
+        - type: FromCompositeFieldPath
+          fromFieldPath: metadata.name
+          toFieldPath: metadata.annotations[crossplane.io/external-name]
+          transforms:
+          - type: string
+            string:
+              type: Convert
+              convert: ToLower
+          - type: string
+            string:
+              type: Regexp
+              regexp:
+                match: '[^a-z0-9-]'
+                replace: '-'
+        - type: FromCompositeFieldPath
+          fromFieldPath: metadata.name
+          toFieldPath: metadata.name
+          transforms:
+          - type: string
+            string:
+              type: Convert
+              convert: ToLower
+          - type: string
+            string:
+              type: Regexp
+              regexp:
+                match: '[^a-z0-9-]'
+                replace: '-'
+        - type: ToCompositeFieldPath
+          fromFieldPath: metadata.annotations[crossplane.io/external-name]
+          toFieldPath: status.serverName
+        - type: FromCompositeFieldPath
+          fromFieldPath: metadata.namespace
+          toFieldPath: spec.writeConnectionSecretToRef.name
+          transforms:
+          - type: string
+            string:
+              type: Format
+              fmt: postgres-conn-%s
+
+      - name: flexibleserverdatabase
+        base:
+          apiVersion: dbforpostgresql.azure.m.upbound.io/v1beta1
+          kind: FlexibleServerDatabase
+          metadata:
+            annotations: {}
+          spec:
+            forProvider:
+              charset: UTF8
+              collation: en_US.utf8
+              serverIdSelector:
+                matchControllerRef: true
+            providerConfigRef:
+              kind: ProviderConfig
+              name: default
+        patches:
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.parameters.databaseName
+          toFieldPath: metadata.annotations[crossplane.io/external-name]
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.parameters.databaseName
+          toFieldPath: metadata.name
+          transforms:
+          - type: string
+            string:
+              type: Convert
+              convert: ToLower
+          - type: string
+            string:
+              type: Regexp
+              regexp:
+                match: '[^a-z0-9-]'
+                replace: '-'
+        - type: FromCompositeFieldPath
+          fromFieldPath: metadata.namespace
+          toFieldPath: spec.forProvider.serverIdSelector.namespace
+        - type: ToCompositeFieldPath
+          fromFieldPath: metadata.annotations[crossplane.io/external-name]
+          toFieldPath: status.databaseName
+
+  - step: auto-ready
+    functionRef:
+      name: function-auto-ready

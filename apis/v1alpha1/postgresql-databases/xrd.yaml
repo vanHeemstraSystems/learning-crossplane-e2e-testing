@@ -1,0 +1,83 @@
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: xpostgresqldatabases.database.example.io
+spec:
+  group: database.example.io
+  names:
+    kind: XPostgreSQLDatabase
+    plural: xpostgresqldatabases
+  # Crossplane v2 XRDs support `scope` (defaults to Namespaced). We set it explicitly.
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    served: true
+    referenceable: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              # Crossplane v2-style XR "machinery" fields live under `spec.crossplane`.
+              # We include the parts we use (composition selection).
+              crossplane:
+                type: object
+                properties:
+                  compositionSelector:
+                    type: object
+                    properties:
+                      matchLabels:
+                        type: object
+                        additionalProperties:
+                          type: string
+              parameters:
+                type: object
+                properties:
+                  location:
+                    type: string
+                    description: Azure region for the PostgreSQL Flexible Server
+                    default: westeurope
+                  resourceGroupName:
+                    type: string
+                    description: Azure resource group name
+                  databaseName:
+                    type: string
+                    description: PostgreSQL database name (Azure external name)
+                    default: appdb
+                  adminUsername:
+                    type: string
+                    description: PostgreSQL admin username
+                    default: pgadmin
+                  adminPasswordSecretName:
+                    type: string
+                    description: Secret name (same namespace as XR) containing the admin password
+                    default: postgres-admin-password
+                  adminPasswordSecretKey:
+                    type: string
+                    description: Secret key containing the admin password
+                    default: password
+                  postgresVersion:
+                    type: string
+                    description: PostgreSQL major version
+                    default: "16"
+                  skuName:
+                    type: string
+                    description: Azure SKU name for Flexible Server
+                    default: B_Standard_B1ms
+                  storageMb:
+                    type: integer
+                    description: Allocated storage in MB
+                    default: 32768
+                required:
+                - resourceGroupName
+            required:
+            - parameters
+          status:
+            type: object
+            properties:
+              serverName:
+                type: string
+              databaseName:
+                type: string

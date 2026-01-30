@@ -1,0 +1,6 @@
+apiVersion: database.example.io/v1alpha1
+kind: XPostgreSQLDatabase
+metadata:
+  name: test-postgres-e2e-001
+  namespace: default
+$patch: delete

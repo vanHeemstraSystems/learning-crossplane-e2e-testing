@@ -1,0 +1,8 @@
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 2400
+commands:
+- script: |
+    # Wait until the XR reconciles successfully.
+    kubectl wait -n default xpostgresqldatabase test-postgres-e2e-001 --for=condition=Synced --timeout=2400s
+    kubectl wait -n default xpostgresqldatabase test-postgres-e2e-001 --for=condition=Ready --timeout=2400s

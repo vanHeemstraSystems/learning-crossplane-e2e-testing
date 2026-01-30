@@ -5,7 +5,10 @@ echo "=== Cleaning up E2E test resources ==="
 
 # Delete all test XRs
 echo "Deleting test XRs..."
-kubectl delete xstorageaccount -l test=e2e --ignore-not-found=true
+kubectl delete xpostgresqldatabase -A --all --ignore-not-found=true
+
+# Optional: legacy storage-account example
+kubectl delete xstorageaccount --all --ignore-not-found=true || true
 
 # Wait for Crossplane to clean up managed resources
 echo "Waiting for managed resources to be deleted..."

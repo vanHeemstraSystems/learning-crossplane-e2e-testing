@@ -1,0 +1,71 @@
+apiVersion: apiextensions.crossplane.io/v2
+kind: CompositeResourceDefinition
+metadata:
+  name: xpostgresqldatabases.database.example.io
+spec:
+  group: database.example.io
+  names:
+    kind: XPostgreSQLDatabase
+    plural: xpostgresqldatabases
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    served: true
+    referenceable: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              crossplane:
+                type: object
+                properties:
+                  compositionSelector:
+                    type: object
+                    properties:
+                      matchLabels:
+                        type: object
+                        additionalProperties:
+                          type: string
+              parameters:
+                type: object
+                properties:
+                  location:
+                    type: string
+                    default: westeurope
+                  resourceGroupName:
+                    type: string
+                  databaseName:
+                    type: string
+                    default: appdb
+                  adminUsername:
+                    type: string
+                    default: pgadmin
+                  adminPasswordSecretName:
+                    type: string
+                    default: postgres-admin-password
+                  adminPasswordSecretKey:
+                    type: string
+                    default: password
+                  postgresVersion:
+                    type: string
+                    default: "16"
+                  skuName:
+                    type: string
+                    default: B_Standard_B1ms
+                  storageMb:
+                    type: integer
+                    default: 32768
+                required:
+                - resourceGroupName
+            required:
+            - parameters
+          status:
+            type: object
+            properties:
+              serverName:
+                type: string
+              databaseName:
+                type: string

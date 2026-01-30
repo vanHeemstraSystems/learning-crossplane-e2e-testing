@@ -1,0 +1,17 @@
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+timeout: 2400
+commands:
+- script: |
+    # Wait for the composed managed resources to become Ready.
+    kubectl wait -n default resourcegroups.azure.m.upbound.io \
+      -l crossplane.io/composite=test-postgres-e2e-001 \
+      --for=condition=Ready --timeout=2400s
+
+    kubectl wait -n default flexibleservers.dbforpostgresql.azure.m.upbound.io \
+      -l crossplane.io/composite=test-postgres-e2e-001 \
+      --for=condition=Ready --timeout=2400s
+
+    kubectl wait -n default flexibleserverdatabases.dbforpostgresql.azure.m.upbound.io \
+      -l crossplane.io/composite=test-postgres-e2e-001 \
+      --for=condition=Ready --timeout=2400s

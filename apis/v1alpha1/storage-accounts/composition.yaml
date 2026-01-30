@@ -20,12 +20,12 @@ spec:
       kind: Resources
       resources:
       # NOTE:
-      # This example uses the namespaced Upbound Azure API groups (with `.m.`),
-      # to match the XRD `scope: Namespaced`.
+      # This example uses the cluster-scoped Upbound Azure API groups (without `.m.`),
+      # to match the XRD `scope: Cluster`.
 
       - name: resourcegroup
         base:
-          apiVersion: azure.m.upbound.io/v1beta1
+          apiVersion: azure.upbound.io/v1beta1
           kind: ResourceGroup
           spec:
             forProvider:
@@ -43,7 +43,7 @@ spec:
 
       - name: storageaccount
         base:
-          apiVersion: storage.azure.m.upbound.io/v1beta1
+          apiVersion: storage.azure.upbound.io/v1beta2
           kind: Account
           spec:
             forProvider:

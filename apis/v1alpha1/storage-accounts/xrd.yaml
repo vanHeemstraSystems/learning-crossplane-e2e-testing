@@ -11,9 +11,11 @@ spec:
   # - Crossplane v2 introduces the XRD `apiextensions.crossplane.io/v2` API.
   # - The v2 XRD API adds the `scope` field (defaults to Namespaced). We set it explicitly.
   # - This guide uses XRs (Composite Resources) directly (no Claims).
-  # This example uses namespaced XRs (Crossplane v2 style).
-  # It expects namespaced managed resources (the `.m.upbound.io` API groups).
-  scope: Namespaced
+  # NOTE:
+  # Upbound Azure Storage Accounts are currently exposed as cluster-scoped managed resources
+  # (`storage.azure.upbound.io/...`). A namespaced XR cannot compose cluster-scoped resources.
+  # Therefore this example uses a cluster-scoped XR.
+  scope: Cluster
   versions:
   - name: v1alpha1
     served: true
@@ -65,7 +67,6 @@ spec:
                 required:
                 - resourceGroupName
             required:
-            - crossplane
             - parameters
           status:
             type: object

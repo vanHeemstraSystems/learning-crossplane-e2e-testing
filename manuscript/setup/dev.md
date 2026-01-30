@@ -342,19 +342,21 @@ kubectl get secret azure-secret -n "$CROSSPLANE_NAMESPACE"
 
 ### 8. Install Azure Providers
 
-For **namespaced** managed resources (the `.m.upbound.io` API groups used by this guide),
-install the Upbound **Azure provider family** (it contains the Azure service providers and includes
-the namespaced CRDs).
+This PostgreSQL example composes **namespaced** Upbound Azure managed resources:
+- `azure.m.upbound.io/...` (e.g. `ResourceGroup`)
+- `dbforpostgresql.azure.m.upbound.io/...` (e.g. `FlexibleServer`, `FlexibleServerDatabase`)
+
+Install the Upbound Azure provider family to get the required `.m.upbound.io` CRDs.
 
 ```bash
-# Create provider installation manifest
-cat <<EOF | kubectl apply -f -
+# Install provider-family-azure (includes dbforpostgresql + many other Azure APIs)
+# If your apiserver is flaky, skip client-side validation to avoid OpenAPI fetch timeouts.
+cat <<EOF | kubectl apply --validate=false -f -
 apiVersion: pkg.crossplane.io/v1
 kind: Provider
 metadata:
   name: provider-family-azure
 spec:
-  # See: https://marketplace.upbound.io/providers/upbound/provider-family-azure/latest
   package: xpkg.upbound.io/upbound/provider-family-azure:v2.3.0
   packagePullPolicy: IfNotPresent
 EOF
@@ -421,10 +423,6 @@ kubectl get --raw='/healthz'
 
 # Check provider status
 kubectl get providers.pkg.crossplane.io
-
-# If you previously installed older Upbound Azure providers (e.g. `provider-azure-storage`),
-# they may conflict with the namespaced `.m.` APIs used in this guide.
-# Prefer using the single `provider-family-azure` package above.
 
 # Wait for all providers to be healthy
 kubectl wait provider --all \
@@ -604,7 +602,7 @@ tree tests/e2e/
 
 ### 13. Create Example XRD and Composition
 
-Let’s create a simple storage account example:
+Let’s create a simple PostgreSQL example (Azure PostgreSQL Flexible Server + Database) using a **namespaced XR**.
 
 ```bash
 # Create API directory structure (Upbound-style)
@@ -612,28 +610,24 @@ Let’s create a simple storage account example:
 # Folder structure:
 # apis/v1alpha1/
 #   kustomization.yaml
-#   storage-accounts/
+#   postgresql-databases/
 #     xrd.yaml
 #     composition.yaml
 #     kustomization.yaml
-mkdir -p apis/v1alpha1/storage-accounts
+mkdir -p apis/v1alpha1/postgresql-databases
 
-# Create Storage Account XRD
-cat <<'EOF' > apis/v1alpha1/storage-accounts/xrd.yaml
+# Create PostgreSQL XRD (namespaced XR)
+cat <<'EOF' > apis/v1alpha1/postgresql-databases/xrd.yaml
 apiVersion: apiextensions.crossplane.io/v2
 kind: CompositeResourceDefinition
 metadata:
-  name: xstorageaccounts.storage.example.io
+  name: xpostgresqldatabases.database.example.io
 spec:
-  group: storage.example.io
+  group: database.example.io
   names:
-    kind: XStorageAccount
-    plural: xstorageaccounts
-  # NOTE (Crossplane v2):
-  # - The XRD v2 API adds `scope` (defaults to Namespaced). We set it explicitly.
-  # - We use XRs (Composite Resources) directly in this guide (no Claims).
-  #
-  # This example uses namespaced XRs and namespaced managed resources (`.m.upbound.io` API groups).
+    kind: XPostgreSQLDatabase
+    plural: xpostgresqldatabases
+  # Crossplane v2 XRDs support `scope` (defaults to Namespaced). We set it explicitly.
   scope: Namespaced
   versions:
   - name: v1alpha1
@@ -661,54 +655,66 @@ spec:
                 properties:
                   location:
                     type: string
-                    description: Azure region for the storage account
+                    description: Azure region for the PostgreSQL Flexible Server
                     default: westeurope
-                  accountTier:
-                    type: string
-                    description: Storage account tier
-                    enum: [Standard, Premium]
-                    default: Standard
-                  replicationType:
-                    type: string
-                    description: Replication type
-                    enum: [LRS, GRS, RAGRS, ZRS]
-                    default: LRS
                   resourceGroupName:
                     type: string
                     description: Azure resource group name
-                  tags:
-                    type: object
-                    description: Additional tags for the storage account
-                    additionalProperties:
-                      type: string
+                  databaseName:
+                    type: string
+                    description: PostgreSQL database name (Azure external name)
+                    default: appdb
+                  adminUsername:
+                    type: string
+                    description: PostgreSQL admin username
+                    default: pgadmin
+                  adminPasswordSecretName:
+                    type: string
+                    description: Secret name (same namespace as XR) containing the admin password
+                    default: postgres-admin-password
+                  adminPasswordSecretKey:
+                    type: string
+                    description: Secret key containing the admin password
+                    default: password
+                  postgresVersion:
+                    type: string
+                    description: PostgreSQL major version
+                    default: "16"
+                  skuName:
+                    type: string
+                    description: Azure SKU name for Flexible Server
+                    default: B_Standard_B1ms
+                  storageMb:
+                    type: integer
+                    description: Allocated storage in MB
+                    default: 32768
                 required:
                 - resourceGroupName
             required:
-            - crossplane
             - parameters
           status:
             type: object
             properties:
-              storageAccountName:
+              serverName:
                 type: string
-              primaryEndpoint:
+              databaseName:
                 type: string
 EOF
 
-# Create Storage Account Composition
-cat <<'EOF' > apis/v1alpha1/storage-accounts/composition.yaml
+# Create PostgreSQL Composition (ResourceGroup + FlexibleServer + FlexibleServerDatabase)
+cat <<'EOF' > apis/v1alpha1/postgresql-databases/composition.yaml
 apiVersion: apiextensions.crossplane.io/v1
 kind: Composition
 metadata:
-  name: xstorageaccounts.storage.example.io
+  name: xpostgresqldatabases.database.example.io
   labels:
     provider: azure
     type: standard
 spec:
   compositeTypeRef:
-    apiVersion: storage.example.io/v1alpha1
-    kind: XStorageAccount
-  
+    apiVersion: database.example.io/v1alpha1
+    kind: XPostgreSQLDatabase
+
   mode: Pipeline
   pipeline:
   - step: patch-and-transform
@@ -718,10 +724,6 @@ spec:
       apiVersion: pt.fn.crossplane.io/v1beta1
       kind: Resources
       resources:
-      # NOTE:
-      # This example uses the namespaced Upbound Azure API groups (with `.m.`).
-      # Ensure your installed Upbound Azure provider(s) include these CRDs.
-
       - name: resourcegroup
         base:
           apiVersion: azure.m.upbound.io/v1beta1
@@ -732,6 +734,9 @@ spec:
               tags:
                 managedBy: crossplane
                 environment: test
+            providerConfigRef:
+              kind: ProviderConfig
+              name: default
         patches:
         - type: FromCompositeFieldPath
           fromFieldPath: spec.parameters.location
@@ -739,87 +744,157 @@ spec:
         - type: FromCompositeFieldPath
           fromFieldPath: spec.parameters.resourceGroupName
           toFieldPath: metadata.name
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.parameters.resourceGroupName
+          toFieldPath: metadata.annotations[crossplane.io/external-name]
 
-      - name: storageaccount
+      - name: flexibleserver
         base:
-          apiVersion: storage.azure.m.upbound.io/v1beta1
-          kind: Account
+          apiVersion: dbforpostgresql.azure.m.upbound.io/v1beta1
+          kind: FlexibleServer
+          metadata:
+            annotations: {}
           spec:
             forProvider:
-              accountReplicationType: LRS
-              accountTier: Standard
-              accountKind: StorageV2
-              resourceGroupName: crossplane-e2e-test-rg
-              tags:
-                managedBy: crossplane
-                environment: test
+              location: westeurope
+              skuName: B_Standard_B1ms
+              version: "16"
+              storageMb: 32768
+              backupRetentionDays: 7
+              autoGrowEnabled: true
+              publicNetworkAccessEnabled: true
+              administratorLogin: pgadmin
+              administratorPasswordSecretRef:
+                name: postgres-admin-password
+                key: password
+              resourceGroupNameRef:
+                name: example
+            providerConfigRef:
+              kind: ProviderConfig
+              name: default
+            writeConnectionSecretToRef:
+              name: postgres-conn
         patches:
         - type: FromCompositeFieldPath
           fromFieldPath: spec.parameters.location
           toFieldPath: spec.forProvider.location
         - type: FromCompositeFieldPath
-          fromFieldPath: spec.parameters.accountTier
-          toFieldPath: spec.forProvider.accountTier
+          fromFieldPath: spec.parameters.skuName
+          toFieldPath: spec.forProvider.skuName
         - type: FromCompositeFieldPath
-          fromFieldPath: spec.parameters.replicationType
-          toFieldPath: spec.forProvider.accountReplicationType
+          fromFieldPath: spec.parameters.postgresVersion
+          toFieldPath: spec.forProvider.version
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.parameters.storageMb
+          toFieldPath: spec.forProvider.storageMb
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.parameters.adminUsername
+          toFieldPath: spec.forProvider.administratorLogin
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.parameters.adminPasswordSecretName
+          toFieldPath: spec.forProvider.administratorPasswordSecretRef.name
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.parameters.adminPasswordSecretKey
+          toFieldPath: spec.forProvider.administratorPasswordSecretRef.key
         - type: FromCompositeFieldPath
           fromFieldPath: spec.parameters.resourceGroupName
-          toFieldPath: spec.forProvider.resourceGroupName
-        # Use a valid Azure storage account name derived from the XR name
+          toFieldPath: spec.forProvider.resourceGroupNameRef.name
         - type: FromCompositeFieldPath
-          fromFieldPath: metadata.name
-          toFieldPath: metadata.name
-          transforms:
-          - type: string
-            string:
-              type: Regexp
-              regexp:
-                match: '[^a-z0-9]'
-                replace: ''
+          fromFieldPath: metadata.namespace
+          toFieldPath: spec.forProvider.resourceGroupNameRef.namespace
         - type: FromCompositeFieldPath
           fromFieldPath: metadata.name
           toFieldPath: metadata.annotations[crossplane.io/external-name]
           transforms:
           - type: string
             string:
+              type: Convert
+              convert: ToLower
+          - type: string
+            string:
               type: Regexp
               regexp:
-                match: '[^a-z0-9]'
-                replace: ''
+                match: '[^a-z0-9-]'
+                replace: '-'
+        - type: FromCompositeFieldPath
+          fromFieldPath: metadata.name
+          toFieldPath: metadata.name
+          transforms:
+          - type: string
+            string:
+              type: Convert
+              convert: ToLower
+          - type: string
+            string:
+              type: Regexp
+              regexp:
+                match: '[^a-z0-9-]'
+                replace: '-'
         - type: ToCompositeFieldPath
           fromFieldPath: metadata.annotations[crossplane.io/external-name]
-          toFieldPath: status.storageAccountName
+          toFieldPath: status.serverName
+        - type: FromCompositeFieldPath
+          fromFieldPath: metadata.namespace
+          toFieldPath: spec.writeConnectionSecretToRef.name
+          transforms:
+          - type: string
+            string:
+              type: Format
+              fmt: postgres-conn-%s
+
+      - name: flexibleserverdatabase
+        base:
+          apiVersion: dbforpostgresql.azure.m.upbound.io/v1beta1
+          kind: FlexibleServerDatabase
+          metadata:
+            annotations: {}
+          spec:
+            forProvider:
+              charset: UTF8
+              collation: en_US.utf8
+              serverIdSelector:
+                matchControllerRef: true
+            providerConfigRef:
+              kind: ProviderConfig
+              name: default
+        patches:
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.parameters.databaseName
+          toFieldPath: metadata.annotations[crossplane.io/external-name]
+        - type: FromCompositeFieldPath
+          fromFieldPath: spec.parameters.databaseName
+          toFieldPath: metadata.name
+          transforms:
+          - type: string
+            string:
+              type: Convert
+              convert: ToLower
+          - type: string
+            string:
+              type: Regexp
+              regexp:
+                match: '[^a-z0-9-]'
+                replace: '-'
+        - type: FromCompositeFieldPath
+          fromFieldPath: metadata.namespace
+          toFieldPath: spec.forProvider.serverIdSelector.namespace
         - type: ToCompositeFieldPath
-          fromFieldPath: status.atProvider.primaryBlobEndpoint
-          toFieldPath: status.primaryEndpoint
-        readinessChecks:
-        - type: MatchString
-          fieldPath: status.atProvider.provisioningState
-          matchString: Succeeded
-  
+          fromFieldPath: metadata.annotations[crossplane.io/external-name]
+          toFieldPath: status.databaseName
+
   - step: auto-ready
     functionRef:
       name: function-auto-ready
 EOF
 
 # Kustomize (so you can `kubectl apply -k` this API package)
-cat <<'EOF' > apis/v1alpha1/storage-accounts/kustomization.yaml
+cat <<'EOF' > apis/v1alpha1/postgresql-databases/kustomization.yaml
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-- xrd.yaml
-- composition.yaml
+  - xrd.yaml
+  - composition.yaml
 EOF
-
-cat <<'EOF' > apis/v1alpha1/kustomization.yaml
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-resources:
-- storage-accounts
-EOF
-
-==== WE ARE HERE ON WINDOWS ====
 
 # Install required Composition Functions
 cat <<EOF | kubectl apply -f -
@@ -844,12 +919,12 @@ sleep 30
 kubectl wait function --all --for=condition=Healthy --timeout=300s
 
 # Apply XRD and Composition
-kubectl apply -k apis/v1alpha1/storage-accounts
+kubectl apply -k apis/v1alpha1/postgresql-databases
 #
 # If you see errors like:
 # "failed to download openapi ... TLS handshake timeout / context deadline exceeded"
 # your (mini)kube-apiserver is overloaded/flaky. Retry and/or skip client-side validation:
-# kubectl apply --validate=false -k apis/v1alpha1/storage-accounts
+# kubectl apply --validate=false -k apis/v1alpha1/postgresql-databases
 
 # Verify
 kubectl get xrd
@@ -863,7 +938,7 @@ kubectl get composition
 cat <<'EOF' > tests/e2e/kuttl-test.yaml
 apiVersion: kuttl.dev/v1beta1
 kind: TestSuite
-timeout: 1200
+timeout: 2400
 parallel: 1
 startKIND: false
 testDirs:
@@ -874,18 +949,32 @@ testDirs:
 EOF
 
 # Create a test case directory (KUTTL discovers test cases as subdirectories)
-mkdir -p tests/e2e/storage-accounts/basic
+mkdir -p tests/e2e/postgresql-databases/basic
 
 # IMPORTANT:
 # KUTTL only executes files that start with a numeric step prefix (e.g. `00-...yaml`).
 # Files without the prefix are ignored by default.
 
 # Create test case - Setup
-cat <<'EOF' > tests/e2e/storage-accounts/basic/00-xr-storage.yaml
-apiVersion: storage.example.io/v1alpha1
-kind: XStorageAccount
+cat <<'EOF' > tests/e2e/postgresql-databases/basic/00-secret.yaml
+apiVersion: v1
+kind: Secret
 metadata:
-  name: test-storage-e2e-001
+  name: postgres-admin-password
+  namespace: default
+type: Opaque
+stringData:
+  # Demo-only password for e2e tests.
+  # Azure PostgreSQL Flexible Server enforces password complexity requirements.
+  password: "P@ssw0rd1234!"
+EOF
+
+cat <<'EOF' > tests/e2e/postgresql-databases/basic/00-xr-postgres.yaml
+apiVersion: database.example.io/v1alpha1
+kind: XPostgreSQLDatabase
+metadata:
+  name: test-postgres-e2e-001
+  namespace: default
 spec:
   crossplane:
     compositionSelector:
@@ -894,73 +983,95 @@ spec:
         type: standard
   parameters:
     location: westeurope
-    accountTier: Standard
-    replicationType: LRS
     resourceGroupName: crossplane-e2e-test-rg
+    databaseName: appdb
+    adminUsername: pgadmin
+    adminPasswordSecretName: postgres-admin-password
+    adminPasswordSecretKey: password
+    postgresVersion: "16"
+    skuName: B_Standard_B1ms
+    storageMb: 32768
 EOF
 
 # Create test case - Assert XR is created
-cat <<'EOF' > tests/e2e/storage-accounts/basic/00-assert.yaml
+cat <<'EOF' > tests/e2e/postgresql-databases/basic/00-assert.yaml
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
-timeout: 1200
+timeout: 2400
 commands:
 - script: |
     # Wait until the XR reconciles successfully.
-    kubectl wait -n default xstorageaccount test-storage-e2e-001 --for=condition=Synced --timeout=1200s
-    kubectl wait -n default xstorageaccount test-storage-e2e-001 --for=condition=Ready --timeout=1200s
+    kubectl wait -n default xpostgresqldatabase test-postgres-e2e-001 --for=condition=Synced --timeout=2400s
+    kubectl wait -n default xpostgresqldatabase test-postgres-e2e-001 --for=condition=Ready --timeout=2400s
 EOF
 
 # Create test case - Verify Managed Resources
-cat <<'EOF' > tests/e2e/storage-accounts/basic/01-assert-storage.yaml
+cat <<'EOF' > tests/e2e/postgresql-databases/basic/01-assert-postgres.yaml
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
-timeout: 1200
+timeout: 2400
 commands:
 - script: |
-    # Wait for the composed Storage Account managed resource to become Ready.
-    kubectl wait -n default account.storage.azure.m.upbound.io \
-      -l crossplane.io/composite=test-storage-e2e-001 \
-      --for=condition=Ready --timeout=1200s
+    # Wait for the composed managed resources to become Ready.
+    kubectl wait -n default resourcegroups.azure.m.upbound.io \
+      -l crossplane.io/composite=test-postgres-e2e-001 \
+      --for=condition=Ready --timeout=2400s
+
+    kubectl wait -n default flexibleservers.dbforpostgresql.azure.m.upbound.io \
+      -l crossplane.io/composite=test-postgres-e2e-001 \
+      --for=condition=Ready --timeout=2400s
+
+    kubectl wait -n default flexibleserverdatabases.dbforpostgresql.azure.m.upbound.io \
+      -l crossplane.io/composite=test-postgres-e2e-001 \
+      --for=condition=Ready --timeout=2400s
 EOF
 
 # Create test case - Verify with Azure CLI
-cat <<'EOF' > tests/e2e/storage-accounts/basic/01-verify-azure.yaml
+cat <<'EOF' > tests/e2e/postgresql-databases/basic/01-verify-azure.yaml
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
 commands:
 - script: |
-    # Get the storage account name from the XR
-    STORAGE_NAME=$(kubectl get -n default xstorageaccount test-storage-e2e-001 \
-      -o jsonpath='{.status.storageAccountName}')
-    
-    # Verify the storage account exists in Azure
-    az storage account show \
-      --name $STORAGE_NAME \
+    SERVER_NAME=$(kubectl get -n default xpostgresqldatabase test-postgres-e2e-001 \
+      -o jsonpath='{.status.serverName}')
+
+    DB_NAME=$(kubectl get -n default xpostgresqldatabase test-postgres-e2e-001 \
+      -o jsonpath='{.status.databaseName}')
+
+    # Verify the server exists in Azure
+    az postgres flexible-server show \
       --resource-group crossplane-e2e-test-rg \
-      --query "provisioningState" \
-      --output tsv | grep -q "Succeeded"
-    
+      --name "$SERVER_NAME" \
+      --output none
+
+    # Verify the database exists in Azure
+    az postgres flexible-server db show \
+      --resource-group crossplane-e2e-test-rg \
+      --server-name "$SERVER_NAME" \
+      --database-name "$DB_NAME" \
+      --output none
+
     exit $?
 EOF
 
 # Create test case - Cleanup
-cat <<'EOF' > tests/e2e/storage-accounts/basic/02-delete.yaml
-apiVersion: storage.example.io/v1alpha1
-kind: XStorageAccount
+cat <<'EOF' > tests/e2e/postgresql-databases/basic/02-delete.yaml
+apiVersion: database.example.io/v1alpha1
+kind: XPostgreSQLDatabase
 metadata:
-  name: test-storage-e2e-001
+  name: test-postgres-e2e-001
+  namespace: default
 $patch: delete
 EOF
 
 # Create test case - Assert cleanup completed
-cat <<'EOF' > tests/e2e/storage-accounts/basic/02-assert.yaml
+cat <<'EOF' > tests/e2e/postgresql-databases/basic/02-assert.yaml
 apiVersion: kuttl.dev/v1beta1
 kind: TestAssert
 commands:
 - script: |
     # Verify XR is deleted
-    ! kubectl get -n default xstorageaccount test-storage-e2e-001 2>/dev/null
+    ! kubectl get -n default xpostgresqldatabase test-postgres-e2e-001 2>/dev/null
     exit $?
 EOF
 ```
@@ -984,7 +1095,7 @@ kubectl config current-context
 # Run kuttl tests
 kubectl kuttl test \
   --config tests/e2e/kuttl-test.yaml \
-  --timeout 1200 \
+  --timeout 2400 \
   --start-kind=false
 
 echo "=== E2E Tests Complete ==="
@@ -999,7 +1110,9 @@ echo "=== Cleaning up E2E test resources ==="
 
 # Delete all test XRs
 echo "Deleting test XRs..."
-kubectl delete xstorageaccount -l test=e2e --ignore-not-found=true
+kubectl delete xpostgresqldatabase -A --all --ignore-not-found=true
+# Optional: if you still have the legacy storage-account example installed
+kubectl delete xstorageaccount --all --ignore-not-found=true || true
 
 # Wait for Crossplane to clean up managed resources
 echo "Waiting for managed resources to be deleted..."
@@ -1077,9 +1190,9 @@ spec:
     kind: GitRepository
     name: crossplane-configs
   healthChecks:
-  - apiVersion: apiextensions.crossplane.io/v1
+  - apiVersion: apiextensions.crossplane.io/v2
     kind: CompositeResourceDefinition
-    name: xstorageaccounts.storage.example.io
+    name: xpostgresqldatabases.database.example.io
 EOF
 ```
 
@@ -1138,9 +1251,9 @@ chmod +x scripts/verify-setup.sh
 ### 2. Run Your First E2E Test
 
 ```bash
-# Run the storage account test
+# Run the PostgreSQL database test
 # Use the suite config so you get the intended timeout settings:
-kubectl kuttl test --config tests/e2e/kuttl-test.yaml tests/e2e/storage-accounts/
+kubectl kuttl test --config tests/e2e/kuttl-test.yaml tests/e2e/postgresql-databases/
 
 # Note: on Windows use 'kuttl' instead of 'kubectl kuttl'.
 
@@ -1148,7 +1261,7 @@ kubectl kuttl test --config tests/e2e/kuttl-test.yaml tests/e2e/storage-accounts
 kubectl kuttl test --config tests/e2e/kuttl-test.yaml
 
 # Watch the test progress in another terminal
-watch kubectl get -n default xstorageaccount,accounts.storage.azure.m.upbound.io,resourcegroups.azure.m.upbound.io
+watch kubectl get -n default xpostgresqldatabase,resourcegroups.azure.m.upbound.io,flexibleservers.dbforpostgresql.azure.m.upbound.io,flexibleserverdatabases.dbforpostgresql.azure.m.upbound.io
 ```
 
 ### 3. Monitor with Azure CLI
@@ -1163,16 +1276,16 @@ watch az resource list \
 ### 4. Visualize with Crossview (Optional)
 
 Crossview is a UI dashboard for Crossplane that can help you quickly see the relationships between:
-- **XRDs** (e.g. `xstorageaccounts.storage.example.io`)
-- **Compositions** (e.g. `xstorageaccounts.storage.example.io`)
-- **XRs** (e.g. `xstorageaccount test-storage-e2e-001`)
-- **Managed resources** (e.g. `resourcegroups.azure.m.upbound.io`, `accounts.storage.azure.m.upbound.io`)
+- **XRDs** (e.g. `xpostgresqldatabases.database.example.io`)
+- **Compositions** (e.g. `xpostgresqldatabases.database.example.io`)
+- **XRs** (e.g. `xpostgresqldatabase default/test-postgres-e2e-001`)
+- **Managed resources** (e.g. `resourcegroups.azure.m.upbound.io`, `flexibleservers.dbforpostgresql.azure.m.upbound.io`, `flexibleserverdatabases.dbforpostgresql.azure.m.upbound.io`)
 
-This section uses the **same storage-account example** used throughout this guide:
-- **XRD/Composition source**: `apis/v1alpha1/storage-accounts/`
-- **XRD name**: `xstorageaccounts.storage.example.io`
-- **Composition name**: `xstorageaccounts.storage.example.io`
-- **Example XR**: `xstorageaccount test-storage-e2e-001` (from `tests/e2e/storage-accounts/basic/`)
+This section uses the **same PostgreSQL example** used throughout this guide:
+- **XRD/Composition source**: `apis/v1alpha1/postgresql-databases/`
+- **XRD name**: `xpostgresqldatabases.database.example.io`
+- **Composition name**: `xpostgresqldatabases.database.example.io`
+- **Example XR**: `xpostgresqldatabase default/test-postgres-e2e-001` (from `tests/e2e/postgresql-databases/basic/`)
 
 Install Crossview into your Minikube cluster (recommended upstream install method is Helm):
 
@@ -1220,12 +1333,12 @@ Optional: validate your XRD ↔ Composition matching via CLI before using the UI
 chmod +x manuscript/setup/crossview/*.sh
 
 # List all Compositions that match this XRD (apiVersion + kind)
-./manuscript/setup/crossview/validate-xrd-composition.sh xstorageaccounts.storage.example.io
+./manuscript/setup/crossview/validate-xrd-composition.sh xpostgresqldatabases.database.example.io
 
 # Or validate a specific Composition explicitly
 ./manuscript/setup/crossview/validate-xrd-composition.sh \
-  xstorageaccounts.storage.example.io \
-  xstorageaccounts.storage.example.io
+  xpostgresqldatabases.database.example.io \
+  xpostgresqldatabases.database.example.io
 ```
 
 If you see either of these errors:
@@ -1253,10 +1366,10 @@ kubectl logs -n crossview deploy/crossview-postgres --tail=200
 Once Crossview is open, look for these resources:
 
 ```bash
-kubectl get xrd xstorageaccounts.storage.example.io
-kubectl get composition xstorageaccounts.storage.example.io
-kubectl get xstorageaccount test-storage-e2e-001
-kubectl get -n default resourcegroups.azure.m.upbound.io,accounts.storage.azure.m.upbound.io -o wide
+kubectl get xrd xpostgresqldatabases.database.example.io
+kubectl get composition xpostgresqldatabases.database.example.io
+kubectl get -n default xpostgresqldatabase test-postgres-e2e-001
+kubectl get -n default resourcegroups.azure.m.upbound.io,flexibleservers.dbforpostgresql.azure.m.upbound.io,flexibleserverdatabases.dbforpostgresql.azure.m.upbound.io -o wide
 ```
 
 If `minikube service` is flaky on your machine, port-forward works everywhere:
@@ -1288,7 +1401,7 @@ kubectl describe providerconfig default
 
 ```bash
 # Check XR events
-kubectl describe xstorageaccount test-storage-e2e-001
+kubectl describe -n default xpostgresqldatabase test-postgres-e2e-001
 
 # Check managed resource status
 kubectl get managed
@@ -1297,23 +1410,23 @@ kubectl get managed
 kubectl logs -n crossplane-system deployment/crossplane -f
 ```
 
-**3. Storage Account name conflicts (Azure)**
+**3. PostgreSQL server name constraints (Azure)**
 
-Azure Storage Account names are **globally unique** and must be **lowercase letters + numbers only**.
-This guide derives the Azure storage account name from the XR name:
-`test-storage-e2e-001` → `teststoragee2e001`.
+Azure PostgreSQL Flexible Server names must be DNS-safe (lowercase letters, numbers, and hyphens).
+This guide derives the Azure server name from the XR name (e.g. `test-postgres-e2e-001`).
 
-If your `Account` managed resource stays `READY=False` with an Azure error indicating the name is already taken,
-delete the XR and re-create it with a different name (which produces a different Azure storage account name):
+If your `FlexibleServer` managed resource stays `READY=False` with an Azure error indicating the name is invalid or already taken,
+delete the XR and re-create it with a different name:
 
 ```bash
-kubectl delete xstorageaccount test-storage-e2e-001
+kubectl delete -n default xpostgresqldatabase test-postgres-e2e-001
 
 cat <<'EOF' | kubectl apply -f -
-apiVersion: storage.example.io/v1alpha1
-kind: XStorageAccount
+apiVersion: database.example.io/v1alpha1
+kind: XPostgreSQLDatabase
 metadata:
-  name: test-storage-e2e-002
+  name: test-postgres-e2e-002
+  namespace: default
 spec:
   crossplane:
     compositionSelector:
@@ -1322,16 +1435,15 @@ spec:
         type: standard
   parameters:
     location: westeurope
-    accountTier: Standard
-    replicationType: LRS
     resourceGroupName: crossplane-e2e-test-rg
+    databaseName: appdb
 EOF
 ```
 
-**4. Azure subscription not registered for Microsoft.Storage**
+**4. Azure subscription not registered for Microsoft.DBforPostgreSQL**
 
-If the `Account` managed resource shows an error like:
-`MissingSubscriptionRegistration ... The subscription is not registered to use namespace 'Microsoft.Storage'`,
+If the `FlexibleServer` managed resource shows an error like:
+`MissingSubscriptionRegistration ... The subscription is not registered to use namespace 'Microsoft.DBforPostgreSQL'`,
 you need to register the Azure Resource Provider in your subscription (one-time per subscription):
 
 ```bash
@@ -1340,18 +1452,18 @@ set -a; source .azure-credentials; set +a
 az login --tenant "$AZURE_TENANT_ID"
 az account set --subscription "$SUBSCRIPTION_ID"
 
-# Register Azure Storage Resource Provider
-az provider register --namespace Microsoft.Storage
+# Register Azure PostgreSQL Resource Provider
+az provider register --namespace Microsoft.DBforPostgreSQL
 
 # Wait until it's registered
-az provider show --namespace Microsoft.Storage --query "registrationState" -o tsv
+az provider show --namespace Microsoft.DBforPostgreSQL --query "registrationState" -o tsv
 ```
 
 Wait until the state is `Registered`, then re-check:
 
 ```bash
-kubectl get -n default account.storage.azure.m.upbound.io -l crossplane.io/composite=test-storage-e2e-001
-kubectl get -n default xstorageaccount test-storage-e2e-001
+kubectl get -n default flexibleservers.dbforpostgresql.azure.m.upbound.io -l crossplane.io/composite=test-postgres-e2e-001
+kubectl get -n default xpostgresqldatabase test-postgres-e2e-001
 ```
 
 Crossplane will retry reconciliation automatically once the provider is registered.
@@ -1394,7 +1506,7 @@ kubectl logs -n flux-system deployment/source-controller
 ./scripts/cleanup-test-resources.sh
 
 # Or manual cleanup
-kubectl delete xstorageaccount --all
+kubectl delete xpostgresqldatabase -A --all
 kubectl delete composition --all
 kubectl delete xrd --all
 ```

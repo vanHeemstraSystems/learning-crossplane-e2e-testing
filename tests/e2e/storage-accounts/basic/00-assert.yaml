@@ -4,5 +4,5 @@ timeout: 1200
 commands:
 - script: |
     # Wait until the XR reconciles successfully.
-    kubectl wait -n default xstorageaccount test-storage-e2e-001 --for=condition=Synced --timeout=1200s
-    kubectl wait -n default xstorageaccount test-storage-e2e-001 --for=condition=Ready --timeout=1200s
+    kubectl wait xstorageaccount test-storage-e2e-001 --for=condition=Synced --timeout=1200s
+    kubectl wait xstorageaccount test-storage-e2e-001 --for=condition=Ready --timeout=1200s

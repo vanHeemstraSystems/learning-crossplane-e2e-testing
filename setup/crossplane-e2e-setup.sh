@@ -296,13 +296,18 @@ log_warning "Secret azure-secret already exists, deleting and recreating..."
 kubectl delete secret azure-secret -n "$CROSSPLANE_NAMESPACE"
 fi
 
-kubectl create secret generic azure-secret   
--namespace "$CROSSPLANE_NAMESPACE"   
--from-literal=creds="[default]
-client_id = $AZURE_CLIENT_ID
-client_secret = $AZURE_CLIENT_SECRET
-tenant_id = $AZURE_TENANT_ID
-subscription_id = $SUBSCRIPTION_ID"
+cat > azure-credentials.json <<EOF
+{
+  "clientId": "${AZURE_CLIENT_ID}",
+  "clientSecret": "${AZURE_CLIENT_SECRET}",
+  "tenantId": "${AZURE_TENANT_ID}",
+  "subscriptionId": "${SUBSCRIPTION_ID}"
+}
+EOF
+
+kubectl create secret generic azure-secret \
+  --namespace "$CROSSPLANE_NAMESPACE" \
+  --from-file=creds=./azure-credentials.json
 
 log_success "Kubernetes secret created: azure-secret"
 
@@ -320,9 +325,9 @@ log_info "Step 8/16: Installing Azure Providers..."
 ## apiVersion: pkg.crossplane.io/v1
 kind: Provider
 metadata:
-name: provider-azure-storage
+name: provider-family-azure
 spec:
-package: xpkg.upbound.io/upbound/provider-azure-storage:v1.3.0
+package: xpkg.upbound.io/upbound/provider-family-azure:v2.3.0
 packagePullPolicy: IfNotPresent
 
 ## apiVersion: pkg.crossplane.io/v1
@@ -592,7 +597,9 @@ echo "=== Cleaning up E2E test resources ==="
 # Delete all test XRs
 
 echo "Deleting test XRs..."
-kubectl delete xstorageaccount -l test=e2e -ignore-not-found=true 2>/dev/null || true
+kubectl delete xpostgresqldatabase -A --all --ignore-not-found=true 2>/dev/null || true
+# Optional: legacy storage-account example
+kubectl delete xstorageaccount --all --ignore-not-found=true 2>/dev/null || true
 
 # Wait for managed resources to be deleted
 

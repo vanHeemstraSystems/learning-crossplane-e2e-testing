@@ -1,0 +1,24 @@
+apiVersion: kuttl.dev/v1beta1
+kind: TestAssert
+commands:
+- script: |
+    SERVER_NAME=$(kubectl get -n default xpostgresqldatabase test-postgres-e2e-001 \
+      -o jsonpath='{.status.serverName}')
+
+    DB_NAME=$(kubectl get -n default xpostgresqldatabase test-postgres-e2e-001 \
+      -o jsonpath='{.status.databaseName}')
+
+    # Verify the server exists in Azure
+    az postgres flexible-server show \
+      --resource-group crossplane-e2e-test-rg \
+      --name "$SERVER_NAME" \
+      --output none
+
+    # Verify the database exists in Azure
+    az postgres flexible-server db show \
+      --resource-group crossplane-e2e-test-rg \
+      --server-name "$SERVER_NAME" \
+      --database-name "$DB_NAME" \
+      --output none
+
+    exit $?

@@ -6,8 +6,8 @@
 #   ./validate-xrd-composition.sh <xrd-name> [composition-name]
 #
 # Examples:
-#   ./validate-xrd-composition.sh xstorageaccounts.storage.example.io
-#   ./validate-xrd-composition.sh xstorageaccounts.storage.example.io xstorageaccounts.storage.example.io
+#   ./validate-xrd-composition.sh xpostgresqldatabases.database.example.io
+#   ./validate-xrd-composition.sh xpostgresqldatabases.database.example.io xpostgresqldatabases.database.example.io
 
 set -euo pipefail
 
