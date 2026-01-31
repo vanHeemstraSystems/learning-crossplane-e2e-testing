@@ -1,6 +1,64 @@
-# AKS Setup for Crossplane V2 with End-to-End Testing
+# Development Environment Setup for Crossplane v2 E2E Testing (AKS or Minikube/Kind)
 
-This guide will help you set up an Azure Kubernetes Service (AKS) cluster with Crossplane v2, Flux for GitOps, and end-to-end testing capabilities.
+This guide will help you set up a Kubernetes cluster with Crossplane v2, Flux for GitOps, and end-to-end testing capabilities.
+
+You can run this guide against:
+- **Azure Kubernetes Service (AKS)** for the most production-like experience, or
+- a **local cluster** (Minikube or Kind) for fast iteration and lower cost (with a higher likelihood of resource/time-out issues).
+
+## Setting Up Your Testing Environment
+
+First, choose the Kubernetes cluster type that matches your goals.
+
+### Option 1: Azure Kubernetes Service (AKS) — Cloud-based testing
+
+Use this for:
+- production-like cluster behavior and stability
+- longer-running integration/E2E test runs
+- team-shared environments
+
+Follow the existing AKS flow in this guide:
+- **Create Azure resources**: see `### 2. Create Azure Resources`
+- **Configure kubectl**: see `### 3. Configure kubectl`
+
+> Cost note: AKS incurs costs while running. Delete resource groups when you are done testing.
+
+### Option 2: Local cluster (Minikube or Kind) — local development
+
+Use this for:
+- local development iteration (especially Layer 0 rendering + quick checks)
+- learning/debugging compositions before pushing to GitOps / AKS
+
+You can still run Crossplane providers from a local cluster and create real Azure resources **if** you configure credentials and allow network egress; however, local clusters are typically more sensitive to API server/webhook timeouts.
+
+#### Minikube quick start
+
+```bash
+minikube start --driver=docker --cpus=4 --memory=8192
+kubectl get nodes
+```
+
+#### Kind quick start
+
+```bash
+cat <<'EOF' | kind create cluster --name crossplane-e2e --config=-
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+- role: control-plane
+- role: worker
+- role: worker
+EOF
+
+kubectl get nodes
+```
+
+Cleanup:
+
+```bash
+minikube delete || true
+kind delete cluster --name crossplane-e2e || true
+```
 
 ## Prerequisites
 
