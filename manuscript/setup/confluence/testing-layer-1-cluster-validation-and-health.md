@@ -22,6 +22,11 @@ Even perfect composition logic (Layer 0) can fail in practice due to cluster-lev
 
 Layer 1 reduces noise before you run slower end-to-end and cloud verification layers.
 
+Environment note (alignment with `testing-demo.md`):
+
+- On **AKS**, Layer 1 typically fails for “real” reasons (RBAC, credentials, Azure API constraints).
+- On **Minikube/Kind**, Layer 1 failures are more often caused by local resource contention leading to API server / webhook timeouts. Webhook stabilization and `--validate=false` retries can be pragmatic during development.
+
 ## Tools and methods
 
 - **kubectl-based health checks**
@@ -31,7 +36,7 @@ Layer 1 reduces noise before you run slower end-to-end and cloud verification la
 - **Webhook stabilization (Crossplane v2)**
   - patch webhook timeouts when the API server is under load (common on local clusters)
 - **Pre-test health script**
-  - in `dev.md`: `scripts/check-crossplane-health.sh`
+  - in `testing-demo.md`: `scripts/check-crossplane-health.sh`
 - **Optional: provider validation with Uptest**
   - validate individual managed resources (create → ready → delete) with cloud-friendly defaults
 
@@ -74,7 +79,7 @@ Layer 1 reduces noise before you run slower end-to-end and cloud verification la
 - Layer 1 is a prerequisite for Layers 2–5.
 - If Layer 1 is unstable, higher layers tend to produce misleading failures and long debugging cycles.
 
-## Notes on Uptest placement (alignment with `dev.md`)
+## Notes on Uptest placement (alignment with `testing-demo.md`)
 
 In our strategy, **Uptest is an optional Layer 1 technique**: it validates provider capability and credentials early, before running longer KUTTL E2E suites.
 

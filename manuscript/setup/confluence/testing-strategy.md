@@ -1,6 +1,6 @@
 # Testing Strategy (Crossplane Platform)
 
-This page defines our **testing strategy** for Crossplane compositions and the platform delivery lifecycle described in `manuscript/setup/dev.md`.
+This page defines our **testing strategy** for Crossplane compositions and the platform delivery lifecycle described in `manuscript/setup/confluence/testing-demo.md`.
 
 We use a **6-layer approach** to balance **speed, cost, and fidelity**. The intent is to validate quickly and locally first, then progressively increase realism (cluster reconciliation, end-to-end tests, cloud verification, and GitOps operations).
 
@@ -22,6 +22,23 @@ This strategy covers:
 - An example **PostgreSQL** API package (`apis/v1alpha1/postgresql-databases/`)
 - E2E testing patterns (KUTTL and optional Uptest)
 - GitOps delivery via Flux and operational visibility via Crossview and Headlamp
+
+---
+
+## Testing Environments (AKS or Minikube/Kind)
+
+Our testing strategy is **environment-agnostic**: the same layer model applies whether the cluster runs in Azure or locally.
+
+We support two execution environments (as described in `testing-demo.md`):
+
+- **Option 1: AKS (cloud-based)**
+  - Best for production-like behavior, longer-running tests, and shared team environments.
+  - Fewer local resource constraints; generally fewer API server/webhook timeout issues.
+- **Option 2: Minikube/Kind (local cluster)**
+  - Best for fast iteration, learning, and cost control.
+  - More sensitive to local CPU/RAM contention; webhook/API server timeouts are more common. This makes **Layer 1** especially important.
+
+The layer ordering stays the same; only the *operational characteristics* (stability, cost, and duration expectations) change.
 
 ---
 
@@ -87,7 +104,7 @@ Legend:
 
 ## Recommended Development Workflow
 
-This mirrors `dev.md` and is our preferred end-to-end flow:
+This mirrors `testing-demo.md` and is our preferred end-to-end flow:
 
 1. **Change composition** (XRD/Composition/functions usage).
 2. **Layer 0**: validate with `crossplane render` (fastest feedback).
@@ -117,6 +134,7 @@ This mirrors `dev.md` and is our preferred end-to-end flow:
 ### Layer 5 (GitOps)
 - **Entry**: manifests committed, Flux bootstrapped
 - **Exit**: Flux resources Ready; drift managed; operational visibility available in Headlamp
+  - Recommended validation: perform a **GitOps reconciliation test** (Git commit → Flux reconcile → Crossplane reconcile), as documented in `testing-demo.md` under **Step 16.1**.
 
 ---
 

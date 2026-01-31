@@ -33,9 +33,9 @@ GitOps provides the operational control plane that makes Crossplane platform del
 - **Optional: CI validation**
   - validate Flux manifests in pull requests (prevent obvious schema/YAML issues from merging)
 
-In `dev.md` we install Flux, define a GitOps directory structure, and show Headlamp installation via Flux controllers.
+In `testing-demo.md` we install Flux, define a GitOps directory structure, and show Headlamp installation via Flux controllers.
 
-Key object names used in `dev.md` (so dashboards and runbooks align):
+Key object names used in `testing-demo.md` (so dashboards and runbooks align):
 
 - `GitRepository`: `crossplane-configs` (namespace `flux-system`)
 - `Kustomization`: `crossplane-apis` (namespace `flux-system`)
@@ -50,6 +50,15 @@ Key object names used in `dev.md` (so dashboards and runbooks align):
 4. If something fails:
    - rollback is a Git revert
    - drift is corrected automatically (or surfaced for decision)
+
+## GitOps Reconciliation Test (recommended)
+
+In addition to observing status, we recommend running a deliberate “proof” of the GitOps loop (as documented in `testing-demo.md` under **Step 16.1**):
+
+- **Option A (safest, config-only)**: change a `Composition` label in Git and verify it appears in-cluster after Flux reconciles.
+- **Option B (proves Crossplane reconciliation)**: change a `Composition` so it updates a field on a composed managed resource (e.g., add a tag to the Azure `ResourceGroup`) and verify the managed resource (and optionally Azure) reflects the new desired state.
+
+This demonstrates the full chain: **Git → Flux → Kubernetes → Crossplane reconciliation**.
 
 ## What “good” looks like (guidance)
 
@@ -87,9 +96,9 @@ Key object names used in `dev.md` (so dashboards and runbooks align):
 
 ### Notifications (Slack example)
 
-Configure Flux to emit alerts for failures on the core GitRepository/Kustomization. This is described in `dev.md` as an optional section under Flux installation.
+Configure Flux to emit alerts for failures on the core GitRepository/Kustomization. This is described in `testing-demo.md` as an optional section under Flux installation.
 
 ### CI validation (GitHub Actions example)
 
-Validate Flux manifests in pull requests to catch obvious failures before merge. This is described in `dev.md` as an optional section under Flux installation.
+Validate Flux manifests in pull requests to catch obvious failures before merge. This is described in `testing-demo.md` as an optional section under Flux installation.
 

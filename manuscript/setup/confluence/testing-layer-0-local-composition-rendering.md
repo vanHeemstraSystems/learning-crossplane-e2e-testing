@@ -26,7 +26,7 @@ Local rendering catches a large class of issues early:
 - **Render-all script (recommended)**: validate every API package under `apis/v1alpha1/*/`
 - **CI validation (recommended)**: run rendering on each pull request to catch composition drift early
 
-In `dev.md` we use the PostgreSQL API package:
+In `testing-demo.md` we use the PostgreSQL API package:
 
 - XRD: `apis/v1alpha1/postgresql-databases/xrd.yaml`
 - Composition: `apis/v1alpha1/postgresql-databases/composition.yaml`
@@ -48,7 +48,7 @@ For teams, local rendering becomes most valuable when it is **standardized**:
 - **Local pre-commit habit**: render the API(s) you changed before pushing
 - **Repository-wide guardrail**: run a “render all APIs” job in CI to prevent broken compositions from merging
 
-In `dev.md` we implement this pattern via:
+In `testing-demo.md` we implement this pattern via:
 
 - `scripts/render-all.sh` (renders all API packages that have examples)
 - a lightweight GitHub Actions workflow that runs the script on push/PR

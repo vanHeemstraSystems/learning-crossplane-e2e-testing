@@ -26,9 +26,9 @@ Cloud verification closes the loop by checking the source-of-truth system: the c
   - validate existence and properties of resources created by Crossplane
   - monitor progress while a test is running
 
-Note: In our strategy (as defined in `dev.md`), **Uptest is an optional Layer 1 provider validation technique**, not a Layer 4 tool.
+Note: In our strategy (as defined in `testing-demo.md`), **Uptest is an optional Layer 1 provider validation technique**, not a Layer 4 tool.
 
-In `dev.md` we show patterns like:
+In `testing-demo.md` we show patterns like:
 
 - watch Azure resource group: `az resource list --resource-group ...`
 - verify PostgreSQL Flexible Server and DB objects (server show + db show)
@@ -64,7 +64,7 @@ In `dev.md` we show patterns like:
 - Layer 4 is usually executed alongside Layer 3 (E2E) for high confidence.
 - Layer 4 is especially important for platform changes that affect security, compliance, cost, or lifecycle controls.
 
-## Practical checks (examples referenced in `dev.md`)
+## Practical checks (examples referenced in `testing-demo.md`)
 
 - Watch the resource group during test runs:
   - `az resource list --resource-group <rg> --output table`

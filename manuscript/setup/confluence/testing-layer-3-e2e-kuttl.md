@@ -21,13 +21,18 @@ E2E tests validate the full system boundary within Kubernetes:
 
 This is where “it renders” becomes “it works”.
 
+Environment note:
+
+- **AKS** is typically the best target for longer-running E2E suites and repeatability.
+- **Minikube/Kind** can be used for E2E, but results are more sensitive to local machine resources and may require more retries/timeouts.
+
 ## Tools and methods
 
 - **KUTTL** (`kubectl-kuttl`)
   - executes ordered steps (e.g., `00-*.yaml`, `01-*.yaml`) within a test case directory
   - supports assertions via `kubectl wait` and script-based checks
 
-In `dev.md` we use:
+In `testing-demo.md` we use:
 
 - suite config: `tests/e2e/kuttl-test.yaml`
 - PostgreSQL suite: `tests/e2e/postgresql-databases/basic/`
@@ -70,7 +75,7 @@ In `dev.md` we use:
 - Layer 3 depends on Layer 1 stability.
 - Layer 4 complements Layer 3 by verifying cloud-side reality beyond Kubernetes conditions.
 
-## Practical notes (alignment with `dev.md`)
+## Practical notes (alignment with `testing-demo.md`)
 
 - Prefer running suites via the shared config file so timeout behavior is consistent: `tests/e2e/kuttl-test.yaml`.
 - Where needed, use the cleanup script approach (delete XRs, then confirm cloud resources are not orphaned).

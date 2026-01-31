@@ -23,7 +23,7 @@ While the CLI is authoritative, a UI that visualizes relationships reduces time-
 ## Tools and methods
 
 - **Crossview**
-  - installation via Helm (as described in `dev.md`)
+  - installation via Helm (as described in `testing-demo.md`)
   - built-in PostgreSQL backing store (Crossview deploys its own Postgres)
 - **CLI validation helpers**
   - optional scripts that validate XRD ↔ Composition matching
@@ -32,7 +32,7 @@ While the CLI is authoritative, a UI that visualizes relationships reduces time-
 
 ## What you typically inspect
 
-Using the PostgreSQL example from `dev.md`:
+Using the PostgreSQL example from `testing-demo.md`:
 
 - XRD: `xpostgresqldatabases.database.example.io`
 - Composition: `xpostgresqldatabases.database.example.io`
