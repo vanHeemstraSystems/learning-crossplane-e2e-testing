@@ -6,8 +6,6 @@
 - **Audience**: Cloud Engineers, Security Teams, DevOps Engineers
 - **Related Documents**:
   - [Security Demo](./security-demo.md)
-  - [Defense in Depth Article](https://github.com/vanHeemstraPublications/dev-to/blob/main/articles/defense-in-depth-of-cyber-carrots.md)
-  - [CNCF Security Best Practices](https://github.com/vanHeemstraSystems/cncf-demo)
 
 ## Executive Summary
 
