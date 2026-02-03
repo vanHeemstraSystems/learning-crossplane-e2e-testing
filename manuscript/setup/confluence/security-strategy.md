@@ -331,11 +331,8 @@ stages:
 
 ## References
 
-- [Defense in Depth of Cyber Carrots](https://github.com/vanHeemstraPublications/dev-to/blob/main/articles/defense-in-depth-of-cyber-carrots.md)
-- [CNCF Security Best Practices](https://github.com/vanHeemstraSystems/cncf-demo)
 - [Azure Security Benchmark](https://docs.microsoft.com/en-us/security/benchmark/azure/)
 - [Crossplane Security Documentation](https://docs.crossplane.io/latest/security/)
-- [Implementation Repository](https://github.com/software-journey/crossplane-defense-in-depth)
 
 -----
 
